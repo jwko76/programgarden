@@ -28,6 +28,7 @@
 ## 증권사 연결
 
 * [LS증권 API 가이드](finance_guide.md)
+* [빗썸(Bithumb) API 가이드](bithumb_finance_guide.md)
 
 ## 개발자 가이드
 
