@@ -1,0 +1,123 @@
+{
+  "id": "89-bithumb-rsi-bot",
+  "name": "빗썸 RSI 과매도 BTC 자동매수 봇",
+  "description": "5분마다 BTC/KRW 일봉 캔들로 RSI(14) 산출 → 과매도(30 이하) 시 소액 시장가 매수. ThrottleNode로 중복 주문 방지.",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "StartNode",
+      "position": {"x": 50, "y": 300}
+    },
+    {
+      "id": "broker",
+      "type": "BithumbBrokerNode",
+      "credential_id": "broker_cred",
+      "position": {"x": 230, "y": 300}
+    },
+    {
+      "id": "schedule",
+      "type": "ScheduleNode",
+      "cron": "*/5 * * * *",
+      "timezone": "Asia/Seoul",
+      "enabled": true,
+      "max_duration_hours": 24,
+      "position": {"x": 430, "y": 300}
+    },
+    {
+      "id": "account",
+      "type": "BithumbAccountNode",
+      "position": {"x": 650, "y": 480}
+    },
+    {
+      "id": "candles",
+      "type": "HTTPRequestNode",
+      "url": "https://api.bithumb.com/v1/candles/days",
+      "method": "GET",
+      "query_params": {"market": "KRW-BTC", "count": "30"},
+      "position": {"x": 650, "y": 120}
+    },
+    {
+      "id": "rsi",
+      "type": "ConditionNode",
+      "plugin": "RSI",
+      "items": {
+        "from": [
+          {
+            "symbol": "KRW-BTC",
+            "exchange": "BITHUMB",
+            "time_series": "{{ nodes.candles.response }}"
+          }
+        ],
+        "extract": {
+          "symbol": "{{ item.symbol }}",
+          "exchange": "{{ item.exchange }}",
+          "date": "{{ row.candle_date_time_utc }}",
+          "close": "{{ row.trade_price }}"
+        }
+      },
+      "fields": {
+        "period": 14,
+        "threshold": 30,
+        "direction": "below"
+      },
+      "position": {"x": 900, "y": 120}
+    },
+    {
+      "id": "throttle",
+      "type": "ThrottleNode",
+      "min_interval_sec": 300,
+      "position": {"x": 1100, "y": 120}
+    },
+    {
+      "id": "buy_order",
+      "type": "BithumbNewOrderNode",
+      "side": "bid",
+      "order_type": "price",
+      "order": {
+        "market": "{{ item.symbol }}",
+        "price": "50000"
+      },
+      "resilience": {
+        "fallback": {"mode": "skip"}
+      },
+      "position": {"x": 1300, "y": 120}
+    }
+  ],
+  "edges": [
+    {"from": "start", "to": "broker"},
+    {"from": "broker", "to": "schedule"},
+    {"from": "schedule", "to": "account"},
+    {"from": "schedule", "to": "candles"},
+    {"from": "candles", "to": "rsi"},
+    {"from": "rsi", "to": "throttle"},
+    {"from": "throttle", "to": "buy_order"}
+  ],
+  "credentials": [
+    {
+      "credential_id": "broker_cred",
+      "type": "broker_bithumb",
+      "data": [
+        {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+        {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"}
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_strategy",
+      "content": "## RSI 과매도 BTC 자동매수 봇\n\n**전략**: RSI(14) 역추세 소액 매수\n\n**캔들**: 빗썸 공개 API (GET /v1/candles/days, 인증 불필요)\n\n**매수 조건**: RSI < 30 (과매도)\n  → 5분마다 최대 1회 (ThrottleNode 300초)\n  → 시장가 50,000 KRW 매수\n\n**주의**: 실 계좌 연동 전 dry_run으로 먼저 검증하세요.",
+      "color": 3,
+      "width": 320,
+      "height": 220,
+      "position": {"x": 30, "y": 30}
+    },
+    {
+      "id": "note_account",
+      "content": "BithumbAccountNode 출력으로\n잔고 모니터링 가능\n(주문 직접 연결 없음 — 표시용)",
+      "color": 1,
+      "width": 200,
+      "height": 80,
+      "position": {"x": 630, "y": 580}
+    }
+  ]
+}

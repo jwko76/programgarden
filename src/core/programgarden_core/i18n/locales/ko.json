@@ -1293,5 +1293,29 @@
   "events.restart.data_gap_warning": "복구 중 데이터 갭 경고: 체크포인트 이후 {gap_sec}초 동안의 데이터가 누락될 수 있습니다",
   "events.restart.skipped_nodes": "복구: {count}개 완료 노드 스킵",
   "events.restart.checkpoint_expired": "체크포인트가 만료됨 ({age_sec}초 > 600초 제한)",
-  "events.restart.workflow_changed": "워크플로우 정의가 변경되어 복구 불가 (해시 불일치)"
+  "events.restart.workflow_changed": "워크플로우 정의가 변경되어 복구 불가 (해시 불일치)",
+
+  "nodes.BithumbBrokerNode.description": "빗썸 거래소 API 연결을 설정합니다. 인증 게이트웨이 역할 — 하위 계좌, 시세, 주문 노드가 DAG 순회를 통해 자동으로 브로커 연결을 상속합니다. credential_id로 broker_bithumb 인증 정보(access_key + secret_key)를 참조합니다. 일반적인 연결: StartNode → BithumbBrokerNode → BithumbAccountNode / BithumbMarketDataNode / BithumbNewOrderNode.",
+  "nodes.BithumbBrokerNode.name": "빗썸 브로커",
+  "nodes.BithumbAccountNode.description": "빗썸 보유 코인·KRW 잔고를 REST API 1회 조회로 가져옵니다. 출력: held_symbols (보유 마켓 코드 목록), balance (KRW 잔고 및 주문 가능 금액), positions (코인별 잔고·묶인 수량·평균 매수가). 상위 BithumbBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.BithumbAccountNode.name": "빗썸 계좌 조회",
+  "nodes.BithumbMarketDataNode.description": "빗썸 코인 현재가를 REST API 1회 조회로 가져옵니다. markets 필드에 마켓 코드를 콤마 구분으로 입력합니다 (ex. KRW-BTC,KRW-ETH). 인증이 필요 없는 공개 API 입니다. 출력: values (마켓별 현재가·변화율·거래량 등). AI Agent 도구로 사용 가능.",
+  "nodes.BithumbMarketDataNode.name": "빗썸 현재가",
+  "nodes.BithumbNewOrderNode.description": "빗썸 코인 매수/매도 주문을 실행합니다. 주문 방향(bid: 매수, ask: 매도)과 방식(limit: 지정가, price: 시장가 매수, market: 시장가 매도)을 설정합니다. 최소 5초 간격 제한 및 중복 주문 방지 기능 내장. 재시도 기본 비활성화. 상위 BithumbBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.BithumbNewOrderNode.name": "빗썸 신규주문",
+  "nodes.BithumbCancelOrderNode.description": "빗썸 미체결 주문을 취소합니다. original_order_id 필드에 취소할 주문 ID를 바인딩하세요. 출력: cancel_result (취소 결과), cancelled_order_id (취소된 주문 ID). 최소 5초 간격 제한 적용. 상위 BithumbBrokerNode 연결 필수.",
+  "nodes.BithumbCancelOrderNode.name": "빗썸 취소주문",
+
+  "fields.BithumbBrokerNode.credential_id": "빗썸 인증정보를 선택하세요 (broker_bithumb 타입)",
+  "fields.BithumbMarketDataNode.markets": "마켓 코드 (콤마 구분, ex. KRW-BTC,KRW-ETH)",
+  "fields.BithumbNewOrderNode.side": "주문 방향 (bid: 매수, ask: 매도)",
+  "fields.BithumbNewOrderNode.order_type": "주문 방식 (limit: 지정가, price: 시장가 매수, market: 시장가 매도)",
+  "fields.BithumbNewOrderNode.order": "주문 정보 {market, volume?, price?}",
+  "fields.BithumbCancelOrderNode.original_order_id": "취소할 빗썸 주문 ID",
+
+  "enums.bithumb_side.bid": "매수 (bid)",
+  "enums.bithumb_side.ask": "매도 (ask)",
+  "enums.bithumb_order_type.limit": "지정가 (limit)",
+  "enums.bithumb_order_type.price": "시장가 매수 (price)",
+  "enums.bithumb_order_type.market": "시장가 매도 (market)"
 }

@@ -7,6 +7,9 @@ class URLS:
 
     BITHUMB_URL: str = "https://api.bithumb.com"
 
+    # 실시간 WebSocket (공개 API — 인증 불필요)
+    WSS_URL: str = "wss://pubwss.bithumb.com/pub/ws"
+
     # 시세 (공개 API)
     MARKET_ALL_URL: str = f"{BITHUMB_URL}/v1/market/all"
     TICKER_URL: str = f"{BITHUMB_URL}/v1/ticker"

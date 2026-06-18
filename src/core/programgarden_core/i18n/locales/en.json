@@ -1296,5 +1296,29 @@
   "events.restart.data_gap_warning": "Data gap warning during restore: data may be missing for {gap_sec} seconds since checkpoint",
   "events.restart.skipped_nodes": "Restore: skipping {count} completed nodes",
   "events.restart.checkpoint_expired": "Checkpoint expired ({age_sec}s > 600s limit)",
-  "events.restart.workflow_changed": "Workflow definition changed, cannot restore (hash mismatch)"
+  "events.restart.workflow_changed": "Workflow definition changed, cannot restore (hash mismatch)",
+
+  "nodes.BithumbBrokerNode.description": "Sets up a Bithumb exchange API connection. Acts as the authentication gateway — downstream account, market data, and order nodes automatically inherit the broker connection via DAG traversal. References broker_bithumb credentials (access_key + secret_key) via credential_id. Typical connection: StartNode → BithumbBrokerNode → BithumbAccountNode / BithumbMarketDataNode / BithumbNewOrderNode.",
+  "nodes.BithumbBrokerNode.name": "Bithumb Broker",
+  "nodes.BithumbAccountNode.description": "Fetches Bithumb coin holdings and KRW balance as a one-time REST API snapshot. Outputs held_symbols (held market codes), balance (KRW balance and orderable amount), and positions (per-coin balance, locked amount, and average buy price). Requires an upstream BithumbBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.BithumbAccountNode.name": "Bithumb Account",
+  "nodes.BithumbMarketDataNode.description": "Fetches Bithumb coin current prices as a one-time REST API snapshot. Enter market codes comma-separated in the markets field (e.g. KRW-BTC,KRW-ETH). Public API — no authentication required. Outputs values (current price, change rate, volume per market). Can be used as an AI Agent tool.",
+  "nodes.BithumbMarketDataNode.name": "Bithumb Market Data",
+  "nodes.BithumbNewOrderNode.description": "Places a Bithumb coin buy/sell order. Configure side (bid: buy, ask: sell) and order_type (limit: limit order, price: market buy by KRW amount, market: market sell by coin quantity). Built-in 5-second rate limit and duplicate order prevention. Retry disabled by default. Requires an upstream BithumbBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.BithumbNewOrderNode.name": "Bithumb New Order",
+  "nodes.BithumbCancelOrderNode.description": "Cancels a pending Bithumb order. Bind the order ID to cancel to the original_order_id field. Outputs cancel_result (cancellation confirmation) and cancelled_order_id. Rate-limited to 5-second minimum interval. Requires an upstream BithumbBrokerNode.",
+  "nodes.BithumbCancelOrderNode.name": "Bithumb Cancel Order",
+
+  "fields.BithumbBrokerNode.credential_id": "Select Bithumb credentials (broker_bithumb type)",
+  "fields.BithumbMarketDataNode.markets": "Market codes (comma-separated, e.g. KRW-BTC,KRW-ETH)",
+  "fields.BithumbNewOrderNode.side": "Order side (bid: buy, ask: sell)",
+  "fields.BithumbNewOrderNode.order_type": "Order type (limit: limit order, price: market buy by KRW, market: market sell by quantity)",
+  "fields.BithumbNewOrderNode.order": "Order info {market, volume?, price?}",
+  "fields.BithumbCancelOrderNode.original_order_id": "Bithumb order ID to cancel",
+
+  "enums.bithumb_side.bid": "Buy (bid)",
+  "enums.bithumb_side.ask": "Sell (ask)",
+  "enums.bithumb_order_type.limit": "Limit order",
+  "enums.bithumb_order_type.price": "Market buy (by KRW amount)",
+  "enums.bithumb_order_type.market": "Market sell (by coin quantity)"
 }

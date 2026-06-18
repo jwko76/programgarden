@@ -135,6 +135,17 @@ from .ls.overseas_futureoption.real import (
 
 from . import bithumb
 from .bithumb import Bithumb
+from .bithumb.real import (
+    BithumbReal,
+    BithumbSubscriptionLimitExceeded,
+    RealTicker,
+    TickerRealResponse,
+    RealTrade,
+    TradeRealResponse,
+    RealOrderbook,
+    OrderbookRealResponse,
+    OrderbookRealUnit,
+)
 from .bithumb import market as bithumb_market
 from .bithumb import account as bithumb_account
 from .bithumb import order as bithumb_order
@@ -390,4 +401,14 @@ __all__ = [
     bithumb_withdraw_detail,
     bithumb_withdraws_chance,
     bithumb_withdraw_coin_addresses,
+
+    BithumbReal,
+    BithumbSubscriptionLimitExceeded,
+    RealTicker,
+    TickerRealResponse,
+    RealTrade,
+    TradeRealResponse,
+    RealOrderbook,
+    OrderbookRealResponse,
+    OrderbookRealUnit,
 ]

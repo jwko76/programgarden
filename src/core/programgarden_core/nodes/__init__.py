@@ -1,7 +1,7 @@
 """
 ProgramGarden Core - 노드 타입 정의
 
-68개 노드 타입을 카테고리로 분류:
+73개 노드 타입을 카테고리로 분류:
 - infra (5): StartNode, ThrottleNode, SplitNode, AggregateNode, IfNode
 - broker (3): OverseasStockBrokerNode, OverseasFuturesBrokerNode, KoreaStockBrokerNode
 - market (16): OverseasStockMarketDataNode, OverseasStockFundamentalNode, OverseasFuturesMarketDataNode, OverseasStockHistoricalDataNode, OverseasFuturesHistoricalDataNode,
@@ -105,6 +105,11 @@ from programgarden_core.nodes.realtime_korea_stock import (
     KoreaStockRealAccountNode,
     KoreaStockRealOrderEventNode,
 )
+# Bithumb (코인/암호화폐)
+from programgarden_core.nodes.broker_bithumb import BithumbBrokerNode
+from programgarden_core.nodes.account_bithumb import BithumbAccountNode
+from programgarden_core.nodes.market_bithumb import BithumbMarketDataNode
+from programgarden_core.nodes.order_bithumb import BithumbNewOrderNode, BithumbCancelOrderNode
 
 __all__ = [
     # Base
@@ -204,4 +209,10 @@ __all__ = [
     "KoreaStockNewOrderNode",
     "KoreaStockModifyOrderNode",
     "KoreaStockCancelOrderNode",
+    # Bithumb - 코인/암호화폐
+    "BithumbBrokerNode",
+    "BithumbAccountNode",
+    "BithumbMarketDataNode",
+    "BithumbNewOrderNode",
+    "BithumbCancelOrderNode",
 ]

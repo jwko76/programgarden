@@ -80,7 +80,7 @@ except ImportError:
     # Community package not installed
     pass
 
-__version__ = "1.18.0"
+__version__ = "1.23.2"
 __all__ = [
     # Core
     "ProgramGarden",

@@ -1031,10 +1031,20 @@ class WorkflowResolver:
             if self._is_broker_node(registry, node_type):
                 continue
 
-            # product_scope match
+            # product_scope match — skip if this node explicitly does not require a broker
+            if getattr(node_class, '_requires_broker', True) is False:
+                continue
+
             if scope.value not in available_brokers:
-                product_label = "overseas_stock" if scope == ProductScope.STOCK else "overseas_futures"
-                broker_node = "OverseasStockBrokerNode" if scope == ProductScope.STOCK else "OverseasFuturesBrokerNode"
+                if scope == ProductScope.STOCK:
+                    product_label = "overseas_stock"
+                    broker_node = "OverseasStockBrokerNode"
+                elif scope == ProductScope.COIN:
+                    product_label = "coin"
+                    broker_node = "BithumbBrokerNode"
+                else:
+                    product_label = "overseas_futures"
+                    broker_node = "OverseasFuturesBrokerNode"
                 result.add(
                     build_error(
                         ErrorCode.MISSING_REQUIRED_BROKER,

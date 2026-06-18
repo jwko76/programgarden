@@ -189,6 +189,9 @@ class NodeTypeRegistry:
             BacktestEngineNode, BenchmarkCompareNode,
             # AI (에이전트, LLM 연결)
             LLMModelNode, AIAgentNode,
+            # Bithumb (코인/암호화폐)
+            BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
+            BithumbNewOrderNode, BithumbCancelOrderNode,
         )
 
         node_classes = [
@@ -244,6 +247,9 @@ class NodeTypeRegistry:
             BacktestEngineNode, BenchmarkCompareNode,
             # AI (에이전트, LLM 연결)
             LLMModelNode, AIAgentNode,
+            # Bithumb (코인/암호화폐)
+            BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
+            BithumbNewOrderNode, BithumbCancelOrderNode,
         ]
 
         for node_class in node_classes:

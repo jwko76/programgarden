@@ -1,0 +1,64 @@
+{
+  "id": "87-bithumb-account",
+  "name": "빗썸 계좌 잔고 조회",
+  "description": "BithumbBrokerNode → BithumbAccountNode: KRW 잔고 및 보유 코인 조회",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "StartNode",
+      "position": {"x": 50, "y": 200}
+    },
+    {
+      "id": "broker",
+      "type": "BithumbBrokerNode",
+      "credential_id": "broker_cred",
+      "position": {"x": 250, "y": 200}
+    },
+    {
+      "id": "account",
+      "type": "BithumbAccountNode",
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "balance_display",
+      "type": "SummaryDisplayNode",
+      "title": "KRW 잔고",
+      "data": "{{ nodes.account.balance }}",
+      "position": {"x": 750, "y": 100}
+    },
+    {
+      "id": "positions_display",
+      "type": "TableDisplayNode",
+      "title": "보유 코인",
+      "columns": ["market", "currency", "balance", "locked", "avg_buy_price"],
+      "data": "{{ nodes.account.positions }}",
+      "position": {"x": 750, "y": 320}
+    }
+  ],
+  "edges": [
+    {"from": "start", "to": "broker"},
+    {"from": "broker", "to": "account"},
+    {"from": "account", "to": "balance_display"},
+    {"from": "account", "to": "positions_display"}
+  ],
+  "credentials": [
+    {
+      "credential_id": "broker_cred",
+      "type": "broker_bithumb",
+      "data": [
+        {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+        {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"}
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_1",
+      "content": "## 빗썸 계좌 잔고 조회\n\n**노드 흐름**: Start → BithumbBroker → BithumbAccount → 표시\n\n**출력 포트**:\n- `balance`: KRW 잔고 (주문 가능 금액, 묶인 금액)\n- `positions`: 보유 코인 목록 (마켓 코드, 수량, 평균 매수가)\n- `held_symbols`: 보유 마켓 코드 목록\n\n**인증**: Access Key / Secret Key (빗썸 OpenAPI 설정에서 발급)",
+      "color": 3,
+      "width": 320,
+      "height": 200,
+      "position": {"x": 30, "y": 30}
+    }
+  ]
+}

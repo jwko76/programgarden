@@ -51,6 +51,9 @@ LONG_RUNNING_WORKFLOWS: set[str] = set()
 # once we have a richer mock LS server.
 KNOWN_MOCK_FRAGILE = {
     "29-monitor-multi-rsi",
+    # HTTPRequestNode makes a real Bithumb public API call; ConditionNode RSI
+    # binding over the candles response requires real data to evaluate correctly.
+    "89-bithumb-rsi-bot",
 }
 
 
@@ -75,9 +78,9 @@ class TestWorkflowStaticValidation:
     """Every bundled example workflow must pass WorkflowExecutor.validate()."""
 
     def test_workflow_files_discovered(self):
-        """Sanity: repo ships with 86 example workflows."""
-        assert len(WORKFLOW_FILES) == 86, (
-            f"expected 86 workflow JSON files, found {len(WORKFLOW_FILES)}"
+        """Sanity: repo ships with 89 example workflows."""
+        assert len(WORKFLOW_FILES) == 89, (
+            f"expected 89 workflow JSON files, found {len(WORKFLOW_FILES)}"
         )
 
     @pytest.mark.parametrize("wf_path", WORKFLOW_FILES, ids=_ids(WORKFLOW_FILES))

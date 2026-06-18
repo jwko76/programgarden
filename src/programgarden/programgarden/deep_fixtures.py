@@ -342,6 +342,16 @@ def broker_connection_fixture(
     flowing. Credentials are placeholders — every downstream broker-bound node is
     itself short-circuited in deep mode, so they are never used for a real call.
     """
+    if "Bithumb" in node_type:
+        return {
+            "connected": True,
+            "connection": {
+                "provider": "bithumb.com",
+                "product": "coin",
+                "access_key": "DEEP_VALIDATE_ACCESS_KEY",
+                "secret_key": "DEEP_VALIDATE_SECRET_KEY",
+            },
+        }
     if "Futures" in node_type:
         product = "overseas_futures"
     elif "Korea" in node_type:
@@ -359,6 +369,52 @@ def broker_connection_fixture(
             "appsecret": "DEEP_VALIDATE_APPSECRET",
         },
     }
+
+
+def bithumb_account_fixture() -> Dict[str, Any]:
+    """BithumbAccountNode deep fixture."""
+    return {
+        "balance": {
+            "krw_balance": 1000000.0,
+            "krw_locked": 0.0,
+            "orderable_amount": 1000000.0,
+        },
+        "positions": [
+            {
+                "market": "KRW-BTC",
+                "currency": "BTC",
+                "balance": 0.01,
+                "locked": 0.0,
+                "avg_buy_price": 95000000.0,
+            }
+        ],
+        "held_symbols": [{"market": "KRW-BTC"}],
+    }
+
+
+def bithumb_market_data_fixture(markets_raw: str = "KRW-BTC") -> Dict[str, Any]:
+    """BithumbMarketDataNode deep fixture."""
+    market_list = [m.strip() for m in markets_raw.split(",") if m.strip()]
+    if not market_list:
+        market_list = ["KRW-BTC"]
+    values = []
+    for idx, market in enumerate(market_list):
+        price = 95000000.0 + idx * 1000000.0
+        values.append({
+            "market": market,
+            "trade_price": price,
+            "change": "RISE",
+            "change_price": 500000.0,
+            "signed_change_rate": 0.005,
+            "acc_trade_volume_24h": 100.0 + idx,
+            "acc_trade_price_24h": price * (100.0 + idx),
+            "high_price": price + 1000000.0,
+            "low_price": price - 1000000.0,
+            "opening_price": price - 500000.0,
+            "prev_closing_price": price - 500000.0,
+            "timestamp": 1750334400000,
+        })
+    return {"values": values}
 
 
 def apply_override(default: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:

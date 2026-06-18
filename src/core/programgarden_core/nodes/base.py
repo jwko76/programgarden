@@ -22,12 +22,14 @@ class ProductScope(str, Enum):
     STOCK = "overseas_stock"        # 해외주식 전용
     FUTURES = "overseas_futures"    # 해외선물 전용
     KOREA_STOCK = "korea_stock"    # 국내주식 전용
+    COIN = "coin"                   # 코인/암호화폐 전용 (빗썸)
     ALL = "all"                     # 상품 무관 (범용)
 
 
 class BrokerProvider(str, Enum):
-    """지원 증권사"""
+    """지원 증권사/거래소"""
     LS = "ls-sec.co.kr"             # LS증권
+    BITHUMB = "bithumb.com"         # 빗썸 거래소
     ALL = "all"                     # 증권사 무관 (범용)
 
 
