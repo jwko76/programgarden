@@ -374,6 +374,17 @@ class O3121OutBlock(BaseModel):
         ),
         examples=["0.1", ""],
     )
+    ticktype: str = Field(
+        default="",
+        title="Tick type (틱타입)",
+        description=(
+            "Tick size rule type. Added 2026-01-31 per LS notice. "
+            "'1' = NQ-style tiered tick (≤5→0.05, ≤100→0.25, ≤500→0.50, >500→1.00); "
+            "'2' = ES-style tiered tick (≤5→0.05, ≤20→0.10, ≤100→0.25, >100→0.50). "
+            "Empty string for contracts that do not use tiered ticks."
+        ),
+        examples=["1", "2", ""],
+    )
 
 
 class O3121Response(BaseModel):
