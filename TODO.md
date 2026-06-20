@@ -28,11 +28,14 @@
 ## 문서
 
 - [ ] **빗썸 API 가이드** 문서 보완 (README 또는 gitbook)
-- [ ] **00-workflow-guide.md** §14 Bithumb 코인 섹션 추가
+- [x] **00-workflow-guide.md** §14 Bithumb 코인 섹션 추가 (2026-06-20, 커밋 완료)
+  - §8 Product Scope 표 업데이트
+  - §9 Bithumb 노드 포트 레퍼런스 추가
+  - §14 신규 섹션 (인증·노드흐름·주문방식·실시간WebSocket·예제)
 
 ## 유지보수
 
-- [ ] deep_validate 커버리지 확장 — 빗썸 노드 fixture 추가 (노드 구현 후)
+- [x] deep_validate 커버리지 확장 — 빗썸 노드 5개 테스트 추가 (2026-06-20, 커밋 완료)
 - [x] finance 버전 업 v1.7.0 (2026-06-19, 커밋 완료)
 
 ---

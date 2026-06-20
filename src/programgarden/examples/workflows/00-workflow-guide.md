@@ -466,6 +466,9 @@ Each broker type serves specific node types. Do not mix:
 | OverseasStockBrokerNode | OverseasStock* nodes |
 | OverseasFuturesBrokerNode | OverseasFutures* nodes |
 | KoreaStockBrokerNode | KoreaStock* nodes |
+| BithumbBrokerNode | Bithumb* nodes (coin) |
+
+**Note**: `BithumbMarketDataNode` uses the public Bithumb API and does **not** require `BithumbBrokerNode`. All other Bithumb nodes (Account, NewOrder, CancelOrder) require it.
 
 ---
 
@@ -625,6 +628,20 @@ All display nodes output:
 | AIAgentNode | response | any | LLM response (text/json/structured) |
 | AIAgentNode | tool_calls | array | Tool call history |
 | AIAgentNode | thinking | string | LLM thinking process |
+
+### Bithumb Nodes (코인)
+
+| Node | Port | Type | Description |
+|------|------|------|-------------|
+| BithumbBrokerNode | connection | broker_connection | Bithumb API connection (auto-injected) |
+| BithumbAccountNode | balance | balance_data | KRW balance (krw_balance, krw_locked, orderable_amount) |
+| BithumbAccountNode | positions | position_data | Held coins (market, currency, balance, locked, avg_buy_price) |
+| BithumbAccountNode | held_symbols | symbol_list | Held market codes (e.g. `[{"market": "KRW-BTC"}]`) |
+| BithumbMarketDataNode | values | market_data | Ticker array (market, trade_price, change, signed_change_rate, …) |
+| BithumbNewOrderNode | result | order_result | Order result (order_id, market, side, order_type, status, created_at) |
+| BithumbNewOrderNode | order_id | string | Shortcut to result.order_id |
+| BithumbCancelOrderNode | cancel_result | order_result | Cancel result (order_id, status) |
+| BithumbCancelOrderNode | cancelled_order_id | string | Cancelled order ID |
 
 ### Messaging Nodes
 
@@ -818,3 +835,112 @@ ExclusionListNode 정적 블랙리스트 (예제 85) 또는 향후 LS 캘린더 
 
 기존 HKEX 예제: `39-realtime-futures-tick`, `57-futures-paper-backtest-heavy`,
 `61-hkex-futures-bot`, `62-rsi-futures-bot` 도 참조.
+
+---
+
+## 14. Bithumb Coin Trading
+
+빗썸(Bithumb) 코인 거래는 LS증권과 별도의 인증 방식을 사용합니다.
+
+### 14.1 인증 방식
+
+| 항목 | 내용 |
+|------|------|
+| 인증 방식 | Access Key + Secret Key (JWT HS256, 요청마다 자동 생성) |
+| Credential 타입 | `broker_bithumb` |
+| Public API | 인증 불필요 (BithumbMarketDataNode, 실시간 WebSocket) |
+| OAuth 토큰 | 없음 (LS증권과 다름) |
+
+```json
+"credentials": [
+  {
+    "credential_id": "bithumb_cred",
+    "type": "broker_bithumb",
+    "data": [
+      {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+      {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"}
+    ]
+  }
+]
+```
+
+### 14.2 기본 노드 흐름
+
+```
+StartNode → BithumbBrokerNode → BithumbAccountNode    (계좌/잔고)
+                             → BithumbNewOrderNode    (주문)
+                             → BithumbCancelOrderNode (취소)
+
+StartNode → BithumbMarketDataNode                     (현재가, 인증 불필요)
+```
+
+### 14.3 BithumbMarketDataNode — 공개 API
+
+`BithumbBrokerNode` 없이 단독 사용 가능. `markets` 필드에 마켓 코드를 콤마로 구분 입력.
+
+```json
+{
+  "id": "market",
+  "type": "BithumbMarketDataNode",
+  "markets": "KRW-BTC,KRW-ETH,KRW-XRP"
+}
+```
+
+출력 `values` 배열의 핵심 필드: `market`, `trade_price`, `change`, `signed_change_rate`, `acc_trade_volume_24h`, `high_price`, `low_price`.
+
+### 14.4 BithumbNewOrderNode — 주문 방식
+
+| order_type | side | 설명 | 필수 필드 |
+|------------|------|------|----------|
+| `limit` | `bid` / `ask` | 지정가 | market, price, volume |
+| `price` | `bid` | 시장가 매수 (KRW 총액 지정) | market, price |
+| `market` | `ask` | 시장가 매도 (수량 지정) | market, volume |
+
+```json
+{
+  "id": "buy",
+  "type": "BithumbNewOrderNode",
+  "side": "bid",
+  "order_type": "price",
+  "order": {"market": "KRW-BTC", "price": "50000"},
+  "resilience": {"fallback": {"mode": "skip"}}
+}
+```
+
+> ⚠️ **주문 안전장치**: 실시간 소스(WebSocket 등)에서 `BithumbNewOrderNode`로 직접 연결하면 Connection Rule 오류. `ThrottleNode`를 반드시 중간에 삽입하세요.
+
+### 14.5 실시간 WebSocket (BithumbReal)
+
+`BithumbRealMarketDataNode` 는 아직 워크플로우 노드로 미구현. Python API 직접 사용:
+
+```python
+from programgarden_finance import Bithumb
+
+bithumb = Bithumb()
+real = bithumb.real()           # 싱글톤
+await real.connect()
+
+ticker = real.ticker()          # 현재가 스트림 (한국어 별칭: real.현재가())
+ticker.add_ticker_codes(["KRW-BTC", "KRW-ETH"])
+
+async for tick in ticker:
+    print(tick.trade_price)     # TickerRealResponse
+
+# 체결/호가
+real.체결().add_ticker_codes(["KRW-BTC"])
+real.호가().add_ticker_codes(["KRW-BTC"])
+```
+
+| 스트림 | 클래스 | 별칭 | 주요 필드 |
+|--------|--------|------|----------|
+| 현재가 | `RealTicker` | `.현재가()` | trade_price, change_rate, volume |
+| 체결 | `RealTrade` | `.체결()` | trade_price, trade_volume, ask_bid |
+| 호가 | `RealOrderbook` | `.호가()` | orderbook_units (bid/ask price+size ×15) |
+
+### 14.6 예제 87-89
+
+| 예제 | 시나리오 | 학습 포인트 |
+|------|---------|-----------|
+| 87 | 빗썸 계좌 잔고 조회 | BithumbBroker → Account → Table/Summary Display |
+| 88 | 현재가 조회 4종 (공개 API) | BithumbMarketDataNode 단독 (인증 불필요) |
+| 89 | RSI 과매도 BTC 자동매수 봇 | HTTPRequestNode 캔들 + ConditionNode(RSI) + ThrottleNode + BithumbNewOrderNode |

@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-06-20 — 빗썸 문서·딥검증 테스트 보완
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: docs(bithumb): 워크플로우 가이드 §14 + deep_validate 빗썸 테스트 5종
+
+### 내용
+
+**00-workflow-guide.md 업데이트:**
+- §8 Product Scope 표: `BithumbBrokerNode` 행 추가 + `BithumbMarketDataNode` 공개 API 주석
+- §9 Bithumb 노드 포트 레퍼런스 테이블 신규 추가 (9개 포트)
+- §14 Bithumb Coin Trading 신규 섹션:
+  - 14.1 인증 방식 (Access Key/Secret Key, JWT HS256)
+  - 14.2 기본 노드 흐름
+  - 14.3 BithumbMarketDataNode 공개 API
+  - 14.4 BithumbNewOrderNode 주문 방식 (limit/price/market)
+  - 14.5 실시간 WebSocket Python API
+  - 14.6 예제 87-89 표
+
+**test_deep_validate.py — 빗썸 테스트 5종 추가 (전부 PASS):**
+- `test_bithumb_account_deep_validate_passes` — Broker→Account 플로우
+- `test_bithumb_market_data_standalone_deep_validate` — MarketData 단독 (브로커 없음)
+- `test_bithumb_order_deep_validate_no_real_api_call` — 주문 플로우 + API 미호출 검증
+- `test_bithumb_account_fixture_shape` — 계좌 fixture 필드 검증
+- `test_bithumb_market_data_fixture_shape` — 현재가 fixture 2마켓 검증
+
+---
+
 ## 2026-06-19 — 빗썸 전체 릴리즈 (v1.7.0 / v1.14.6 / v1.23.2)
 
 **작업자**: Claude (jwko76 요청)

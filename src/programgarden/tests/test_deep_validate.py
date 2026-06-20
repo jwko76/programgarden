@@ -860,3 +860,159 @@ def test_free_root_names_does_not_raise_on_unparseable_source():
 
     roots = _free_root_names("{{ \udcff }}")
     assert "__syntax_error__" in roots
+
+
+# ============================================================
+# Bithumb (코인) deep_validate tests
+# ============================================================
+
+def _bithumb_credentials() -> list:
+    return [
+        {
+            "credential_id": "bithumb_cred",
+            "type": "broker_bithumb",
+            "data": [
+                {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+                {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"},
+            ],
+        }
+    ]
+
+
+def bithumb_account_workflow() -> dict:
+    """start → BithumbBroker → BithumbAccount."""
+    return {
+        "id": "wf-bithumb-account",
+        "name": "bithumb account deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "broker", "type": "BithumbBrokerNode", "credential_id": "bithumb_cred"},
+            {"id": "account", "type": "BithumbAccountNode"},
+        ],
+        "edges": [
+            {"from": "start", "to": "broker"},
+            {"from": "broker", "to": "account"},
+        ],
+        "credentials": _bithumb_credentials(),
+    }
+
+
+def bithumb_order_workflow() -> dict:
+    """start → BithumbBroker → BithumbAccount → BithumbNewOrder."""
+    return {
+        "id": "wf-bithumb-order",
+        "name": "bithumb order deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "broker", "type": "BithumbBrokerNode", "credential_id": "bithumb_cred"},
+            {"id": "account", "type": "BithumbAccountNode"},
+            {
+                "id": "buy",
+                "type": "BithumbNewOrderNode",
+                "side": "bid",
+                "order_type": "price",
+                "order": {"market": "KRW-BTC", "price": "50000"},
+            },
+        ],
+        "edges": [
+            {"from": "start", "to": "broker"},
+            {"from": "broker", "to": "account"},
+            {"from": "account", "to": "buy"},
+        ],
+        "credentials": _bithumb_credentials(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_bithumb_account_deep_validate_passes():
+    """BithumbBrokerNode → BithumbAccountNode must deep-validate cleanly.
+    No real API call should be made — fixture is returned instead."""
+    pg = ProgramGarden()
+    result = await asyncio.wait_for(
+        pg.executor.deep_validate(bithumb_account_workflow(), timeout=12.0),
+        timeout=20.0,
+    )
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_bithumb_market_data_standalone_deep_validate():
+    """BithumbMarketDataNode requires no broker — must pass standalone."""
+    pg = ProgramGarden()
+    wf = {
+        "id": "wf-bithumb-market",
+        "name": "bithumb market data deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "market", "type": "BithumbMarketDataNode", "markets": "KRW-BTC,KRW-ETH"},
+        ],
+        "edges": [{"from": "start", "to": "market"}],
+        "credentials": [],
+    }
+    result = await asyncio.wait_for(
+        pg.executor.deep_validate(wf, timeout=12.0),
+        timeout=20.0,
+    )
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_bithumb_order_deep_validate_no_real_api_call():
+    """Deep-validating a Bithumb order workflow must NOT call the real Bithumb API.
+    BithumbNewOrderNode must return a simulated result."""
+    pg = ProgramGarden()
+
+    # Patch _make_bithumb_client so any real call fails loudly
+    import programgarden.bithumb_executors as bx_mod
+
+    def _boom(*args, **kwargs):  # pragma: no cover
+        raise AssertionError("_make_bithumb_client must NOT be called in deep_validate")
+
+    with patch.object(bx_mod, "_make_bithumb_client", side_effect=_boom) as mock_client:
+        result = await asyncio.wait_for(
+            pg.executor.deep_validate(bithumb_order_workflow(), timeout=12.0),
+            timeout=20.0,
+        )
+
+    assert mock_client.call_count == 0, "Bithumb API must never be called in deep mode"
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_bithumb_account_fixture_shape():
+    """BithumbAccountNodeExecutor in deep mode returns correct fixture shape."""
+    from programgarden.bithumb_executors import BithumbAccountNodeExecutor
+
+    ctx = make_deep_context()
+    ex = BithumbAccountNodeExecutor()
+    out = await ex.execute(
+        node_id="account",
+        node_type="BithumbAccountNode",
+        config={"connection": {"provider": "bithumb.com", "access_key": "x", "secret_key": "y"}},
+        context=ctx,
+    )
+    assert "balance" in out
+    assert "positions" in out
+    assert "held_symbols" in out
+    assert out["balance"]["krw_balance"] > 0
+
+
+@pytest.mark.asyncio
+async def test_bithumb_market_data_fixture_shape():
+    """BithumbMarketDataNodeExecutor in deep mode returns correct fixture shape."""
+    from programgarden.bithumb_executors import BithumbMarketDataNodeExecutor
+
+    ctx = make_deep_context()
+    ex = BithumbMarketDataNodeExecutor()
+    out = await ex.execute(
+        node_id="market",
+        node_type="BithumbMarketDataNode",
+        config={"markets": "KRW-BTC,KRW-ETH"},
+        context=ctx,
+    )
+    assert "values" in out
+    values = out["values"]
+    assert len(values) == 2
+    assert values[0]["market"] == "KRW-BTC"
+    assert values[1]["market"] == "KRW-ETH"
+    assert all("trade_price" in v for v in values)
