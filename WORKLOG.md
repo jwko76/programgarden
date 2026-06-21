@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-06-21 — finance v1.8.0 릴리즈
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: release: finance v1.8.0 — LS TR 63개 추가 + RES 기반 버그 수정
+
+### 변경 내역 (v1.7.0 → v1.8.0)
+
+**신규 TR 63개 (LS xingAPI RES 스펙 기반)**
+- 업종 차트: t8408/t8409/t8429 (6/29 기존 t8417/18/19 대체)
+- 국내 선물/옵션: t2210/t2301/t8402~t8406/t8427/t8434/t2541/t2545/t0441
+- ELW: t1950~t1988 (15종)
+- 주식 거래원: t1752/t1764/t1771
+- 주식 투자정보: t3202/t3341/t3401/t3518/t3521/t8428
+- 주식 종목검색: t1825/t1857
+- 업종 시세: t1485/t1514/t8424/t8425
+- 기타: t8410/t8411/t8412/t1411/t1921/t1926/t1902/t1906/t1489/t1492/t1615/t1716/t1717/t1533/t4203/t8417/t8418/t8419
+
+**버그 수정**
+- o3121 OutBlock `ticktype` 필드 누락 (2026.1.31 LS 공지)
+- t8452/t8453 OutBlock `jiclosev` → `jiclose` (전일종가 오타)
+- t1422 InBlock `jshex` 필드 누락
+- t1617 InBlock `gubun4` 필드 누락
+
+**config.py 신규 URL**
+- KOREA_STOCK_EXCHANGE_URL / INVESTINFO_URL / ITEM_SEARCH_URL / ELW_URL
+- DOMESTIC_FO_MARKET_URL / FO_INVESTOR_URL / FO_ACCNO_URL
+
+---
+
 ## 2026-06-21 — 미구현 TR 60개 전체 추가 (RES 자동생성)
 
 **작업자**: Claude (jwko76 요청)
