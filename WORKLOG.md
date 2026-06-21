@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-06-21 — 미구현 TR 60개 전체 추가 (RES 자동생성)
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: feat(ls): 나머지 미구현 TR 60개 전체 추가 (RES 스펙 기반 자동생성)
+
+### 내용
+
+xingAPI RES 파일 329개 파싱 → 미구현 63개 중 60개 구현 (t8408/t8409/t8429는 이전 커밋)
+
+신규 카테고리 8개 + 기존 카테고리 보완:
+- `futureoption/market/`: 국내선물옵션 시세 9종
+- `futureoption/investor/`: 국내선물 투자자 2종
+- `futureoption/accno/`: 국내선물 계좌 1종
+- `korea_stock/elw/`: ELW 15종
+- `korea_stock/exchange/`: 거래원 3종
+- `korea_stock/investinfo/`: 투자정보 6종
+- `korea_stock/item_search/`: 종목검색 2종
+- `korea_stock/indtp/`: 업종 시세 4종
+- 기존 카테고리: chart/etc/etf/ranking/investor/frgr_itt/sector/indtp_chart 보완
+
+config.py: 7개 URL 상수 추가 (EXCHANGE, INVESTINFO, ITEM_SEARCH, ELW, DOMESTIC_FO_*)
+
+---
+
 ## 2026-06-21 — LS RES 파일 전수 비교 + TR 수정 (t8408/t8409/t8429 신규, 버그 4건)
 
 **작업자**: Claude (jwko76 요청)
