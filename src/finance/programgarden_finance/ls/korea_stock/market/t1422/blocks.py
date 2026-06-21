@@ -91,6 +91,12 @@ class T1422InBlock(BaseModel):
         description="Pagination cursor. 0 on first request; pass back ``idx`` from the previous response on follow-ups. Treat as opaque LS-defined token.",
         examples=[0],
     )
+    jshex: Literal["0", "1"] = Field(
+        default="0",
+        title="장외종목포함여부 (Include OTC stocks)",
+        description="'0' = KRX/NXT listed only; '1' = include OTC (장외) stocks. Per RES spec 2026-06-21.",
+        examples=["0", "1"],
+    )
     exchgubun: Literal["K", "N", "U"] = Field(
         default="K",
         title="거래소구분코드 (Exchange division code)",

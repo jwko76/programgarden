@@ -81,6 +81,9 @@ from .ls.korea_stock.ranking import t1482
 from .ls.korea_stock.chart import t8452
 from .ls.korea_stock.chart import t8453
 from .ls.korea_stock.chart import t1665
+from .ls.korea_stock.indtp_chart import t8408
+from .ls.korea_stock.indtp_chart import t8409
+from .ls.korea_stock.indtp_chart import t8429
 from .ls.korea_stock.etc import t1638
 from .ls.korea_stock.etc import t1927
 from .ls.korea_stock.etc import t1941
@@ -262,6 +265,9 @@ __all__ = [
     t8452,
     t8453,
     t1665,
+    t8408,
+    t8409,
+    t8429,
     t1638,
     t1927,
     t1941,

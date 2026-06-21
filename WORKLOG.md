@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-06-21 — LS RES 파일 전수 비교 + TR 수정 (t8408/t8409/t8429 신규, 버그 4건)
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: feat(ls): t8408/t8409/t8429 업종차트 신규 구현 + RES 기반 버그 4건 수정
+
+### 내용
+
+**RES 파일 전수 비교 (329개 파일, 129개 TR 파싱)**
+- RES: XingAPI 스펙 파일, REST OpenAPI와 동일 OutBlock 필드
+- 코드베이스 매칭 TR: 66개, 미구현: 63개
+
+**신규 TR 3종 구현 (6/29 마감)**
+- `t8408` — (API용)업종차트(틱/n틱): `/indtp/chart`, float 10.2
+- `t8409` — (API용)업종차트(분): `/indtp/chart`, float 10.2
+- `t8429` — (API용)업종차트(일/주/월): `/indtp/chart`, float 10.2
+- `ls/korea_stock/indtp_chart/` 신규 패키지, config.py INDTP_CHART_URL 추가
+
+**버그 수정 (RES 비교로 발견)**
+- `t8452/t8453 OutBlock.jiclose`: `jiclosev` → `jiclose` (오타 수정, 이 필드 없으면 전일종가 소실)
+- `t1422 InBlock.jshex`: 장외종목포함여부 필드 추가
+- `t1617 InBlock.gubun4`: 구분4 필드 추가
+
+---
+
 ## 2026-06-20 — LS TR 변경사항 전수 조사 + o3121 ticktype 수정
 
 **작업자**: Claude (jwko76 요청)

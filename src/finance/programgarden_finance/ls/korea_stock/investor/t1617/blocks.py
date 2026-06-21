@@ -89,6 +89,12 @@ class T1617InBlock(BaseModel):
         description="Continuation time cursor. Empty (or single space) on the first request.",
         examples=[""],
     )
+    gubun4: str = Field(
+        default="",
+        title="구분4 (Category 4)",
+        description="Additional classification flag. Semantics not declared in available source; pass empty or consume as returned by LS. Per RES spec 2026-06-21.",
+        examples=[""],
+    )
     exchgubun: Literal["K", "N", "U"] = Field(
         default="K",
         title="거래소구분코드 (Exchange division code)",
