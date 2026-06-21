@@ -48,11 +48,19 @@ class URLS:
     KOREA_STOCK_INDTP_CHART_URL = f"{LS_URL}/indtp/chart"
     KOREA_STOCK_INVESTOR_URL = f"{LS_URL}/stock/investor"
     KOREA_STOCK_PROGRAM_URL = f"{LS_URL}/stock/program"
+    KOREA_STOCK_EXCHANGE_URL = f"{LS_URL}/stock/exchange"
+    KOREA_STOCK_INVESTINFO_URL = f"{LS_URL}/stock/investinfo"
+    KOREA_STOCK_ITEM_SEARCH_URL = f"{LS_URL}/stock/item-search"
+    KOREA_STOCK_ELW_URL = f"{LS_URL}/stock/elw"
 
     FO_MARKET_URL = f"{LS_URL}/overseas-futureoption/market-data"
     FO_ACCNO_URL = f"{LS_URL}/overseas-futureoption/accno"
     FO_CHART_URL = f"{LS_URL}/overseas-futureoption/chart"
     FO_ORDER_URL = f"{LS_URL}/overseas-futureoption/order"
+
+    DOMESTIC_FO_MARKET_URL = f"{LS_URL}/futureoption/market-data"
+    DOMESTIC_FO_INVESTOR_URL = f"{LS_URL}/futureoption/investor"
+    DOMESTIC_FO_ACCNO_URL = f"{LS_URL}/futureoption/accno"
 
     WSS_URL = "wss://openapi.ls-sec.co.kr:9443/websocket"
     WSS_URL_FAKE = "wss://openapi.ls-sec.co.kr:29443/websocket"

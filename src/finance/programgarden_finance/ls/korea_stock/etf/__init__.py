@@ -120,3 +120,5 @@ __all__ = [
     t1903,
     t1904,
 ]
+from . import t1902
+from . import t1906
