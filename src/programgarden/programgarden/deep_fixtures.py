@@ -417,6 +417,31 @@ def bithumb_market_data_fixture(markets_raw: str = "KRW-BTC") -> Dict[str, Any]:
     return {"values": values}
 
 
+def bithumb_historical_fixture(market: str = "KRW-BTC", n: int = 30) -> Dict[str, Any]:
+    """BithumbHistoricalDataNode deep fixture — oldest-first OHLCV 캔들 시리즈."""
+    base_price = 95_000_000.0
+    candles = []
+    for i in range(n):
+        date = (_FIXTURE_ANCHOR + timedelta(days=i)).strftime("%Y-%m-%dT00:00:00")
+        # 완만한 상승-하강 패턴 (RSI 실계산을 위해 변동 부여)
+        delta = (i - n // 2) * 200_000.0
+        close = base_price + delta
+        candles.append({
+            "market": market,
+            "candle_date_time_utc": date,
+            "opening_price": close - 100_000.0,
+            "high_price": close + 300_000.0,
+            "low_price": close - 300_000.0,
+            "trade_price": close,
+            "candle_acc_trade_volume": 50.0 + i * 0.5,
+            "candle_acc_trade_price": close * (50.0 + i * 0.5),
+        })
+    # time_series: ConditionNode 포맷 (oldest-first)
+    time_series = [{"symbol": market, "exchange": "BITHUMB", "time_series": candles}]
+    # values: 최신→과거 순 (API 응답 방향)
+    return {"values": list(reversed(candles)), "time_series": time_series}
+
+
 def apply_override(default: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Shallow-merge a caller override on top of a default fixture.
 

@@ -51,8 +51,8 @@ LONG_RUNNING_WORKFLOWS: set[str] = set()
 # once we have a richer mock LS server.
 KNOWN_MOCK_FRAGILE = {
     "29-monitor-multi-rsi",
-    # HTTPRequestNode makes a real Bithumb public API call; ConditionNode RSI
-    # binding over the candles response requires real data to evaluate correctly.
+    # ScheduleNode requires croniter which is not installed in the test venv.
+    # Static validation and deep_validate pass; only dry_run cycle fails on croniter.
     "89-bithumb-rsi-bot",
 }
 

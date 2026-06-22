@@ -273,6 +273,90 @@ class BithumbMarketDataNodeExecutor(_BithumbExecutorBase):
             return _error(str(exc))
 
 
+# ──────────────────────────── BithumbHistoricalDataNodeExecutor ──
+
+
+class BithumbHistoricalDataNodeExecutor(_BithumbExecutorBase):
+    """BithumbHistoricalDataNode executor — GET /v1/candles/days 호출.
+
+    보안:
+    - market 파라미터: ^[A-Z]+-[A-Z0-9]+$ 패턴 검증 (injection 방지)
+    - count: 1~200 범위 강제
+    - 공개 API — 인증 불필요
+    """
+
+    _MARKET_RE = __import__("re").compile(r"^[A-Z]+-[A-Z0-9]+$")
+
+    async def execute(
+        self,
+        node_id: str,
+        node_type: str,
+        config: Dict[str, Any],
+        context,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        if context.is_deep_validate or context.is_dry_run:
+            from programgarden import deep_fixtures as _df
+            config = _evaluate_all_bindings(config, context, node_id)
+            fixture = _df.bithumb_historical_fixture(config.get("market", "KRW-BTC"))
+            if context.is_deep_validate:
+                return _df.apply_override(fixture, context.get_deep_fixture(node_id, node_type))
+            return fixture
+
+        config = _evaluate_all_bindings(config, context, node_id)
+        market = str(config.get("market", "KRW-BTC")).strip().upper()
+        count  = int(config.get("count", 30))
+
+        # 입력 검증 (시큐어 코딩 §1.3)
+        if not self._MARKET_RE.match(market):
+            context.log("error", f"BithumbHistoricalDataNode: 잘못된 market 형식 '{market}'", node_id)
+            return _error(f"Invalid market format: {market}")
+        count = max(1, min(200, count))
+
+        try:
+            from programgarden_finance.bithumb.market.candles_days.blocks import CandlesDaysInBlock
+
+            bithumb = _make_bithumb_client("", "")  # Public API
+            resp = bithumb.market().candles_days(
+                CandlesDaysInBlock(market=market, count=count)
+            ).req()
+
+            if resp.error_msg:
+                context.log("error", f"BithumbHistoricalDataNode: {resp.error_msg}", node_id)
+                return _error(resp.error_msg)
+
+            # 원본 캔들 배열 (최신→과거 순, API 반환 그대로)
+            values = []
+            for blk in resp.blocks or []:
+                values.append({
+                    "market": blk.market,
+                    "candle_date_time_utc": blk.candle_date_time_utc,
+                    "opening_price": blk.opening_price,
+                    "high_price": blk.high_price,
+                    "low_price": blk.low_price,
+                    "trade_price": blk.trade_price,
+                    "candle_acc_trade_volume": blk.candle_acc_trade_volume,
+                    "candle_acc_trade_price": getattr(blk, "candle_acc_trade_price", 0.0),
+                })
+
+            # ConditionNode RSI/Bollinger용 time_series (oldest-first 역순 정렬)
+            series_oldest_first = list(reversed(values))
+            time_series = [
+                {
+                    "symbol": market,
+                    "exchange": "BITHUMB",
+                    "time_series": series_oldest_first,
+                }
+            ]
+
+            context.log("info", f"BithumbHistoricalDataNode: {market} {len(values)}개 캔들 조회", node_id)
+            return {"values": values, "time_series": time_series}
+
+        except Exception as exc:
+            context.log("error", f"BithumbHistoricalDataNode 실패: {exc}", node_id)
+            return _error(str(exc))
+
+
 # ─────────────────────────────────── BithumbNewOrderNodeExecutor ──
 
 

@@ -109,6 +109,7 @@ from programgarden_core.nodes.realtime_korea_stock import (
 from programgarden_core.nodes.broker_bithumb import BithumbBrokerNode
 from programgarden_core.nodes.account_bithumb import BithumbAccountNode
 from programgarden_core.nodes.market_bithumb import BithumbMarketDataNode
+from programgarden_core.nodes.historical_bithumb import BithumbHistoricalDataNode
 from programgarden_core.nodes.order_bithumb import BithumbNewOrderNode, BithumbCancelOrderNode
 
 __all__ = [
@@ -213,6 +214,7 @@ __all__ = [
     "BithumbBrokerNode",
     "BithumbAccountNode",
     "BithumbMarketDataNode",
+    "BithumbHistoricalDataNode",
     "BithumbNewOrderNode",
     "BithumbCancelOrderNode",
 ]

@@ -24,7 +24,7 @@ from programgarden_core.exceptions import *
 from programgarden_core import korea_alias
 from programgarden_core import bases
 
-__version__ = "1.14.6"
+__version__ = "1.14.7"
 __all__ = [
     # Nodes - Base
     "BaseNode",
@@ -93,6 +93,7 @@ __all__ = [
     "BithumbBrokerNode",
     "BithumbAccountNode",
     "BithumbMarketDataNode",
+    "BithumbHistoricalDataNode",
     "BithumbNewOrderNode",
     "BithumbCancelOrderNode",
     # Models

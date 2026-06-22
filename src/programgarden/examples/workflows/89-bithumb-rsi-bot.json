@@ -1,7 +1,7 @@
 {
   "id": "89-bithumb-rsi-bot",
   "name": "빗썸 RSI 과매도 BTC 자동매수 봇",
-  "description": "5분마다 BTC/KRW 일봉 캔들로 RSI(14) 산출 → 과매도(30 이하) 시 소액 시장가 매수. ThrottleNode로 중복 주문 방지.",
+  "description": "5분마다 BTC/KRW 일봉 캔들 30개로 RSI(14) 산출 → 과매도(30 이하) 시 소액 시장가 매수. ThrottleNode로 중복 주문 방지.",
   "nodes": [
     {
       "id": "start",
@@ -30,10 +30,9 @@
     },
     {
       "id": "candles",
-      "type": "HTTPRequestNode",
-      "url": "https://api.bithumb.com/v1/candles/days",
-      "method": "GET",
-      "query_params": {"market": "KRW-BTC", "count": "30"},
+      "type": "BithumbHistoricalDataNode",
+      "market": "KRW-BTC",
+      "count": 30,
       "position": {"x": 650, "y": 120}
     },
     {
@@ -41,13 +40,7 @@
       "type": "ConditionNode",
       "plugin": "RSI",
       "items": {
-        "from": [
-          {
-            "symbol": "KRW-BTC",
-            "exchange": "BITHUMB",
-            "time_series": "{{ nodes.candles.response }}"
-          }
-        ],
+        "from": "{{ nodes.candles.time_series }}",
         "extract": {
           "symbol": "{{ item.symbol }}",
           "exchange": "{{ item.exchange }}",
@@ -105,10 +98,10 @@
   "notes": [
     {
       "id": "note_strategy",
-      "content": "## RSI 과매도 BTC 자동매수 봇\n\n**전략**: RSI(14) 역추세 소액 매수\n\n**캔들**: 빗썸 공개 API (GET /v1/candles/days, 인증 불필요)\n\n**매수 조건**: RSI < 30 (과매도)\n  → 5분마다 최대 1회 (ThrottleNode 300초)\n  → 시장가 50,000 KRW 매수\n\n**주의**: 실 계좌 연동 전 dry_run으로 먼저 검증하세요.",
+      "content": "## RSI 과매도 BTC 자동매수 봇\n\n**전략**: RSI(14) 역추세 소액 매수\n\n**캔들**: BithumbHistoricalDataNode (GET /v1/candles/days, 인증 불필요)\n  → time_series 출력을 ConditionNode에 직결\n\n**매수 조건**: RSI < 30 (과매도)\n  → 5분마다 최대 1회 (ThrottleNode 300초)\n  → 시장가 50,000 KRW 매수\n\n**주의**: 실 계좌 연동 전 ProgramGarden.validate_deep()으로 검증하세요.",
       "color": 3,
-      "width": 320,
-      "height": 220,
+      "width": 340,
+      "height": 230,
       "position": {"x": 30, "y": 30}
     },
     {

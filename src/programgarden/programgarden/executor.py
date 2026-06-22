@@ -15370,6 +15370,7 @@ class WorkflowExecutor:
                 BithumbBrokerNodeExecutor,
                 BithumbAccountNodeExecutor,
                 BithumbMarketDataNodeExecutor,
+                BithumbHistoricalDataNodeExecutor,
                 BithumbNewOrderNodeExecutor,
                 BithumbCancelOrderNodeExecutor,
             )
@@ -15377,6 +15378,7 @@ class WorkflowExecutor:
                 "BithumbBrokerNode": BithumbBrokerNodeExecutor(),
                 "BithumbAccountNode": BithumbAccountNodeExecutor(),
                 "BithumbMarketDataNode": BithumbMarketDataNodeExecutor(),
+                "BithumbHistoricalDataNode": BithumbHistoricalDataNodeExecutor(),
                 "BithumbNewOrderNode": BithumbNewOrderNodeExecutor(),
                 "BithumbCancelOrderNode": BithumbCancelOrderNodeExecutor(),
             }

@@ -191,6 +191,7 @@ class NodeTypeRegistry:
             LLMModelNode, AIAgentNode,
             # Bithumb (코인/암호화폐)
             BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
+            BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
         )
 
@@ -249,6 +250,7 @@ class NodeTypeRegistry:
             LLMModelNode, AIAgentNode,
             # Bithumb (코인/암호화폐)
             BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
+            BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
         ]
 
