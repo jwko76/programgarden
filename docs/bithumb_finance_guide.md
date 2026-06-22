@@ -550,3 +550,120 @@ from programgarden_finance import (
 각 `bithumb_xxx` 모듈은 `XxxInBlock`(요청 파라미터/본문), `XxxRequest`, `TrXxx`,
 `XxxResponse`(및 `XxxOutBlock`)를 노출합니다. 예: `bithumb_ticker.TickerInBlock`,
 `bithumb_order_new.OrderNewInBlock`.
+
+---
+
+## 실시간 WebSocket API (BithumbReal)
+
+빗썸 공개 WebSocket(`wss://pubwss.bithumb.com/pub/ws`)으로 실시간 데이터를 수신합니다.
+**인증 불필요** — 공개 API입니다.
+
+### 연결 및 구독
+
+```python
+from programgarden_finance import Bithumb
+
+bithumb = Bithumb()
+real = bithumb.real()          # 싱글톤 — 반복 호출해도 동일 인스턴스
+await real.connect()
+
+# 현재가 스트림
+ticker = real.ticker()         # 한국어 별칭: real.현재가()
+ticker.add_ticker_codes(["KRW-BTC", "KRW-ETH"])
+
+def on_tick(msg):              # sync/async 콜백 모두 지원
+    print(msg.code, msg.trade_price, msg.signed_change_rate)
+
+ticker.on_ticker(on_tick)
+
+# 체결 스트림
+trade = real.trade()           # 별칭: real.체결()
+trade.add_trade_codes(["KRW-BTC"])
+trade.on_trade(lambda m: print(m.trade_price, m.trade_volume, m.ask_bid))
+
+# 호가 스트림
+orderbook = real.orderbook()   # 별칭: real.호가()
+orderbook.add_orderbook_codes(["KRW-BTC"])
+orderbook.on_orderbook(lambda m: print(m.orderbook_units[0].ask_price))
+
+# 유지
+try:
+    while True:
+        await asyncio.sleep(1)
+finally:
+    await real.close()
+```
+
+### TickerRealResponse 주요 필드
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `code` | str | 마켓 코드 (KRW-BTC 등) |
+| `trade_price` | float | 현재가 |
+| `change` | str | RISE / EVEN / FALL |
+| `signed_change_rate` | float | 변화율 (소수, 예: 0.025 = +2.5%) |
+| `trade_volume` | float | 체결 수량 |
+| `acc_trade_volume_24h` | float | 24시간 거래량 |
+
+### 재연결 · 구독 상한
+
+```python
+real = bithumb.real(
+    max_subscribe_codes=100,   # 종목 수 상한 (기본 100)
+    reconnect_delay=5.0,        # 재연결 대기 (초)
+    staleness_seconds=60,       # N초 이상 미수신 시 재연결
+)
+```
+
+---
+
+## BithumbHistoricalDataNode (워크플로우 노드)
+
+`ProgramGarden` 워크플로우에서 일봉 캔들 데이터를 가져와 ConditionNode RSI/Bollinger에 바로 연결합니다.
+**인증 불필요** (공개 API).
+
+```json
+{
+  "id": "candles",
+  "type": "BithumbHistoricalDataNode",
+  "market": "KRW-BTC",
+  "count": 30
+}
+```
+
+**출력 포트**
+
+| 포트 | 타입 | 설명 |
+|------|------|------|
+| `time_series` | symbol_series | `[{symbol, exchange, time_series:[...candles]}]` — ConditionNode 직결 포맷 |
+| `values` | candle_data | 원본 캔들 배열 (최신→과거 순) |
+
+**ConditionNode 연결 예시**
+
+```json
+"items": {
+  "from": "{{ nodes.candles.time_series }}",
+  "extract": {
+    "symbol": "{{ item.symbol }}",
+    "exchange": "{{ item.exchange }}",
+    "date": "{{ row.candle_date_time_utc }}",
+    "close": "{{ row.trade_price }}"
+  }
+}
+```
+
+→ 예제 89번(`89-bithumb-rsi-bot.json`)에서 완전한 RSI 자동매수 봇 구현 참조.
+
+---
+
+## 워크플로우 예제 (87-89)
+
+| 예제 | 파일 | 설명 |
+|------|------|------|
+| 87 | `87-bithumb-account.json` | 빗썸 계좌 잔고 조회 (BithumbBrokerNode → Account → Display) |
+| 88 | `88-bithumb-market-data.json` | 현재가 4종 (공개 API, BithumbBrokerNode 불필요) |
+| 89 | `89-bithumb-rsi-bot.json` | RSI 과매도 BTC 자동매수 봇 (ScheduleNode + HistoricalNode + ConditionNode) |
+
+---
+
+*마지막 갱신: 2026-06-23*
