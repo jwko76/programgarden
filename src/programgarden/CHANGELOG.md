@@ -1,5 +1,82 @@
 ## [Unreleased]
 
+## [1.24.1] - 2026-06-20
+### Added
+- **주문 거부 진단 + 빈주문 사유 구분** (order-error-mapping) — 라이브 런타임 주문 실패
+  콜백 보강(core `order_diagnostics` 소비).
+  - `NewOrderNodeExecutor` — 거부/빈OrderNo/예외 3분기에서 `map_reject_code` 로
+    `order_result.diagnostics`(`OrderRejectInfo`) 동봉 + `on_notification(ORDER_REJECTED)`
+    1건 발행. 거래시간 밖 빈 OrderNo 는 전용 진단(`known=True`, "market closed / broker delay")
+    으로 silent no-op 차단. 기존 `error` 키 하위호환 유지.
+  - `PositionSizingNodeExecutor` — `_empty_result` 에 `EmptyOrderReason`
+    (`no_signal`/`fetch_failed`/`no_symbol`)을 상류 출력(`context.get_all_outputs`) 조회로
+    판정해 부여. 불확실 시 `fetch_failed` over-report 로 silent 미탐 방지.
+  - 적용 마켓: 해외주식(COSAT00301) / 해외선물(CIDBT00100) / 국내주식(CSPAT00601).
+- **예제 86 / 86b — NASDAQ 추세매수 + 고정 5% HWM 트레일링스탑 라이브 워크플로우**
+  (`examples/workflows/`) — community TrailingStop v2.1.0 `trail_percent` 고정 % 모드를
+  실계좌 경로로 검증하는 변종(86b: 동전주 $1~2 라이브 매수경로). 러너 `--workflow` 파라미터화.
+
+### Fixed
+- **MarketData / Fundamental / Watchlist executor — list-of-dict symbol 바인딩 미해석 수정**
+  (`executor.py`) — 호스트 실키 라이브에서 확정된 버그: 메인 루프의 `_resolve_config_expressions`
+  가 쓰는 `evaluate_fields` 는 list 항목이 dict 이면 재귀하지 않아
+  `symbols=[{"symbol": "{{ ... }}"}]` 의 중첩 표현식이 literal 문자열로 남아 LS g3101 에
+  literal `{{ ... }}` 가 전달돼 HTTP 500 으로 실패(예제 86 매수경로 차단). 세 executor
+  진입부에 `evaluate_all_bindings`(dict/list 완전 재귀, 멱등) 추가. 형제 일관성 차원에서
+  **ExclusionListNodeExecutor** 의 manual `symbols` 바인딩 사각지대도 동일하게 닫음.
+- **`schedule_tick` 사이클 격리** (`executor.py`) — ScheduleNode 잡의 단일 사이클 노드 예외
+  (잔고 부분실패 `ConditionEvaluationError`, ScreenerNode silent-failure 가드 등)가
+  `_execute_main_flow` 밖으로 전파되어 `status=failed` 로 스케줄러가 통째로 종료되던 문제 수정
+  (무인 봇이 일시적 TR 오류 1번에 정지). 실패 사이클은 `errors_count` 증가 + error 로그 +
+  `cycle_failed` 잡 상태 통지(silent failure 금지) 후 다음 tick 재시도, 성공 사이클은 기존대로
+  `cycle_completed` 통지.
+
+### Dependencies
+- `programgarden-core` ^1.15.0 → ^1.15.1, `programgarden-finance` ^1.6.10 → ^1.6.11,
+  `programgarden-community` ^1.13.8 → ^1.13.9 — cross-package patch alignment bump.
+
+## [1.24.0] - 2026-06-13
+### Added
+- **deep 타입인지 검증 (Phase 2)** — 포트 스키마 기반 정적 타입검증을 `validate_deep` 에 추가.
+  노드 출력→입력 바인딩(`{{ nodes.X.port.field }}`)에서 **존재하는 필드의 타입 비호환**을
+  `INVALID_FIELD_TYPE` 로 surface 한다(미존재 필드는 기존 `_validate_expression_references` 가
+  이미 검출하므로, 그 valid-field 경로 위에 타입 호환 검사만 추가). `resolver.py` 에 포트 출력/소비
+  스칼라 클래스 추정기(`_output_field_type`/`_consuming_scalar_class` 등)를 두어 호환 불가 시
+  진단에 `available_values`(해당 포트의 실제 필드 목록)를 함께 제시한다. 키워드 매칭 없이
+  포트 스키마·바인딩 그래프 구조만 사용.
+- **의미·안전 설정형 레이어 R1~R4 (Phase 3)** — `programgarden/semantic_rules.py`(신규)를 추가.
+  `validate_deep(semantic_rules=...)` 로 **opt-in** 하는 설정형 레이어로, 구조 + `dry_run` +
+  타입검증이 표현하지 못하는 의도·안전 안티패턴을 검사한다:
+  - R1 `order_qty_from_ai_response` — AI 노드의 자유형 응답을 주문 수량에 직결(차단).
+  - R2 `structured_output_missing_schema` — structured AI output 을 출력 스키마 선언 없이 소비.
+  - R3 `hardcoded_order_quantity` — 주문 수량이 하드코딩 리터럴.
+  - R4 `order_ignored_field` — 주문 노드가 필수 브로커 필드를 무시.
+  `STRICT_SEMANTIC_SEVERITIES` 프리셋 제공(R1/R2 = `error`, R3/R4 = `warning`). 기본은 off
+  (`semantic_rules=None` → 레이어 전체 skip, `DEFAULT_SEMANTIC_SEVERITIES` = 전 룰 off), 호출자가
+  `{rule_id: "error"|"warning"|"off"}` 로 per-rule severity 를 opt-in 한다. 출처분석은 구조 신호
+  (노드 타입·바인딩 그래프)만 사용하며 언어별 키워드 하드코딩 없음. 발견 사항은 `SEMANTIC_*`
+  코드로 다른 에러와 동일한 `ErrorInfo` 형태를 갖는다. 레이어는 순수(pure)·never-raise 라
+  내부 예외가 deep_validate 자체를 깨뜨리지 않는다.
+- **AI 노드 deep fixture (Phase 0/1)** — `programgarden/deep_fixtures.py`(신규). deep_validate 시
+  AI/LLM 계열 노드(`AIAgentNodeExecutor`)를 **실 LLM 호출·ReAct 루프 없이** 스키마-shaped fixture
+  로 오프라인 실행(네트워크·모델비용 0)하여 다운스트림 `{{ nodes.X.response[.field] }}` 바인딩과
+  flow 무결성이 검증되도록 한다. preset 을 먼저 적용해 `output_format`/`output_schema` 가 런타임과
+  동일하게 반영된다. 아울러 노드가 **raise 하지 않고** sole-`error` dict 를 반환해 COMPLETED 출력으로
+  조용히 삼켜지던 silent-fail 경로를 제거 — `DEEP_VALIDATION_NODE_ERROR` 구조화 에러로 승격해
+  실패 사유·위치를 챗봇에 전달한다(feedback_chatbot_error_clarity).
+
+### Changed
+- **`validate_deep` / `WorkflowExecutor.deep_validate` 시그니처에 `semantic_rules: dict|None` 추가**
+  (`ProgramGarden.validate_deep` 도 전달). 기본 `None` = 의미·안전 레이어 전체 skip 이라 기존
+  deep_validate 패스는 **불변**(런타임/`dry_run` 무영향). 의미 레이어는 정적-유효성 게이트 앞에서
+  돌려 구조 에러와 함께 findings 가 함께 실리도록 한다.
+- **`__init__.py` export 확대** — `STRICT_SEMANTIC_SEVERITIES`, `DEFAULT_SEMANTIC_SEVERITIES`,
+  `analyze_workflow_semantics`, `normalize_severities`, `ALL_RULES`, `RULE_*`(4종)을 공개 API 로 노출.
+
+### Dependencies
+- `programgarden-core ^1.15.0` — 의미·안전 레이어가 사용하는 신규 `SEMANTIC_*` ErrorCode 4종
+  (및 기본 severity 매핑)에 의존.
+
 ## [1.23.1] - 2026-06-13
 ### Fixed
 - **deep_validate 정적 바인딩 스캔 갭 근본수정** — 깊은검증(`validate_deep`)이 각 노드의 executor 를

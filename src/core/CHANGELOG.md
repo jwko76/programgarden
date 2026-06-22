@@ -1,5 +1,36 @@
 ## [Unreleased]
 
+## [1.15.1] - 2026-06-20
+### Added
+- **Order reject diagnostics + empty-order reason 모델** (`programgarden_core.models.order_diagnostics`)
+  — 라이브 런타임 주문 실패 콜백을 AI 챗봇 소비자가 파싱 없이 읽도록 구조화.
+  - `OrderRejectInfo`(`rsp_cd`/`cause`/`tip`/`raw_msg`/`known`) — 영어 전용(cause/tip),
+    `ErrorInfo` message/suggestion 컨벤션 일치.
+  - `EmptyOrderReason`(`no_signal`/`fetch_failed`/`no_symbol`) — "신호없음(정상)" vs
+    "조회실패(이상)"를 결정적으로 구분(no silent failure 정책).
+  - `map_reject_code(market, rsp_cd, raw_msg)` + 마켓별 테이블
+    (`OVERSEAS_STOCK_REJECT_CODES`/`OVERSEAS_FUTURES_REJECT_CODES`/`KOREA_STOCK_REJECT_CODES`).
+    **현재 빈 테이블 → 모든 코드 `known=False` raw 폴백**, 라이브 수집 후 점진 등재(추측 등재 금지).
+- **`NotificationCategory.ORDER_REJECTED`** — 주문 거부 전용 알림 카테고리(drawdown용
+  `RISK_ALERT` 와 분리). 카테고리 11→12종.
+
+## [1.15.0] - 2026-06-13
+### Added
+- **Semantic / safety layer `ErrorCode` values** (4 additive enum members) — surfaced by
+  the configurable semantic/safety layer (R1~R4) that `programgarden.validate_deep(semantic_rules=...)`
+  opts into. These express intent/safety anti-patterns that structure + `dry_run` + type
+  validation cannot, are **OFF by default**, and are opted into per-rule severity by the caller:
+  - `SEMANTIC_ORDER_QTY_FROM_AI` (R1) — an order node's quantity is wired straight from an AI
+    node's free-form response. Default severity **error**.
+  - `SEMANTIC_STRUCTURED_OUTPUT_NO_SCHEMA` (R2) — structured AI output is consumed without a
+    declared output schema. Default severity **error**.
+  - `SEMANTIC_HARDCODED_ORDER_QTY` (R3) — an order quantity is a hardcoded literal. Default
+    severity **warning**.
+  - `SEMANTIC_ORDER_IGNORED_FIELD` (R4) — an order node ignores a required broker field.
+    Default severity **warning**.
+  - Each value is registered in `_DEFAULT_SEVERITY` (R1/R2 = `ERROR`, R3/R4 = `WARNING`) so a
+    rule enabled without an explicit severity falls back to its blocking/advisory default.
+
 ## [1.14.5] - 2026-06-13
 ### Changed
 - **`ExpressionEvaluator.evaluate_fields(..., on_error=None)`** gains an optional
