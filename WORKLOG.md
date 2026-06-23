@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-06-23 — upstream merge v1.24.1 + 형상관리 재구성
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: merge, fix, test, docs
+
+### 내용
+
+**형상관리 재구성**
+- `upstream` = `programgarden/programgarden.git` (fetch only, pull 전용)
+- `origin` = `jwko76/programgarden.git` (SSH push 전용)
+- `jwko76/programgarden` GitHub 레포 신규 생성 + 전체 히스토리 push
+- 릴리즈 태그 (v1.23.2/v1.23.3, core/finance 버전별) 로컬 생성
+
+**upstream v1.24.1 merge → v1.25.0**
+- deep type-aware validation Phase 1-3 (cross-port type check, R1~R4 semantic layer)
+- order-error-mapping: 주문 거부 진단 + 빈주문 사유 구분
+- TrailingStop v2.1.0: trail_percent 고정 % 모드 + HWM 자가 갱신
+- 예제 86/86b (NASDAQ 추세매수 HWM trailing stop, 동전주 변종)
+- schedule_tick 사이클 격리 버그픽스
+- executor list-of-dict symbol 바인딩 버그픽스
+- ai_agent_fixture in deep_fixtures.py
+- t1511/t1633 OutBlock 필드 10.2 반영 (LS 공지)
+
+**버전 결정 (충돌 해결)**
+- core: 1.14.7(jwko) + 1.15.1(upstream) → **1.15.2**
+- finance: **1.9.0** 유지 (upstream 1.6.11보다 TR 대폭 많음)
+- programgarden: 1.23.3(jwko) + 1.24.1(upstream) → **1.25.0**
+
+**테스트**
+- programgarden: 308 passed, 3 xfailed (LONG_RUNNING/KNOWN_MOCK_FRAGILE 정리)
+- MonitoringLSStock: 150 passed
+- EC2 배포 완료: v1.9.0, LS WS + SC1 + H1_ + Coin 모두 정상
+
+---
+
 ## 2026-06-21 — finance v1.8.0 릴리즈
 
 **작업자**: Claude (jwko76 요청)
