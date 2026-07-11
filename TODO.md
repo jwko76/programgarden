@@ -2,7 +2,12 @@
 
 ## 진행 중
 
-- [ ] **feature/kis-broker 브랜치** — 한국투자증권(KIS) 연동 구현 완료, main 머지 대기
+- [ ] **KIS 실전 라이브 검증 마무리 — 2026-07-13(월) 장중 (09:00~15:30 KST)**
+  - [ ] 주문 라이프사이클: `run_order_lifecycle_live.py` — 한화생명(088350) 하한가 지정가 1주 매수 → 즉시 취소
+    - 실행: WSL에서 `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py`
+    - 취소 실패 시 HTS/MTS에서 수동 취소 (주문번호 로그에 출력됨)
+  - [ ] 실시간 체결가: `run_real_ccnl.py` (H0STCNT0, 60초 수신) — 주문 실행과 병행하면 체결통보(H0STCNI0)도 확인 가능
+  - 완료 기준: REST 7종 + 실시간 전부 라이브 검증 → CLAUDE.md/WORKLOG 갱신
 
 ## 다음 작업 후보
 
