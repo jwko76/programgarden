@@ -30,6 +30,7 @@ class BrokerProvider(str, Enum):
     """지원 증권사/거래소"""
     LS = "ls-sec.co.kr"             # LS증권
     BITHUMB = "bithumb.com"         # 빗썸 거래소
+    KIS = "koreainvestment.com"     # 한국투자증권
     ALL = "all"                     # 증권사 무관 (범용)
 
 

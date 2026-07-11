@@ -193,6 +193,10 @@ class NodeTypeRegistry:
             BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
             BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
+            # KIS (한국투자증권 국내주식)
+            KisBrokerNode, KisAccountNode, KisMarketDataNode,
+            KisHistoricalDataNode,
+            KisNewOrderNode, KisCancelOrderNode,
         )
 
         node_classes = [
@@ -252,6 +256,10 @@ class NodeTypeRegistry:
             BithumbBrokerNode, BithumbAccountNode, BithumbMarketDataNode,
             BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
+            # KIS (한국투자증권 국내주식)
+            KisBrokerNode, KisAccountNode, KisMarketDataNode,
+            KisHistoricalDataNode,
+            KisNewOrderNode, KisCancelOrderNode,
         ]
 
         for node_class in node_classes:
