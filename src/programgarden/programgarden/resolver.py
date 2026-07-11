@@ -1071,15 +1071,17 @@ class WorkflowResolver:
         result: ValidationResult,
     ) -> None:
         """
-        같은 product_scope의 BrokerNode가 중복되지 않는지 검증.
+        같은 (product_scope, broker_provider) 조합의 BrokerNode가 중복되지 않는지 검증.
 
-        - OverseasStockBrokerNode는 1개만 허용
-        - OverseasFuturesBrokerNode는 1개만 허용
+        - 같은 스코프라도 프로바이더가 다르면 공존 가능
+          (예: korea_stock의 LS KoreaStockBrokerNode + KIS KisBrokerNode)
+        - 같은 (scope, provider) 브로커 2개는 중복 에러
         - 다른 product_scope끼리는 공존 가능 (overseas_stock + overseas_futures)
         """
-        from programgarden_core.nodes.base import ProductScope
+        from programgarden_core.nodes.base import ProductScope, BrokerProvider
 
-        broker_scopes: Dict[str, str] = {}  # {product_scope.value: node_id}
+        # {(product_scope.value, broker_provider.value): node_id}
+        broker_keys: Dict[Tuple[str, str], str] = {}
 
         for node in workflow.nodes:
             node_type = node.get("type")
@@ -1097,24 +1099,26 @@ class WorkflowResolver:
             if scope == ProductScope.ALL:
                 continue
 
-            scope_value = scope.value
-            if scope_value in broker_scopes:
-                product_label = "overseas_stock" if scope == ProductScope.STOCK else "overseas_futures"
+            provider = getattr(node_class, '_broker_provider', BrokerProvider.ALL)
+            broker_key = (scope.value, provider.value)
+            if broker_key in broker_keys:
                 result.add(
                     build_error(
                         ErrorCode.DUPLICATE_BROKER_NODE,
-                        f"Duplicate {product_label} broker node: '{broker_scopes[scope_value]}' and '{node_id}'",
+                        f"Duplicate {scope.value} broker node for provider "
+                        f"'{provider.value}': '{broker_keys[broker_key]}' and '{node_id}'",
                         location=ErrorLocation(node_id=node_id, node_type=node_type),
-                        suggestion="Keep only one broker node per product scope.",
+                        suggestion="Keep only one broker node per (product scope, broker provider).",
                         details={
-                            "product_scope": scope_value,
-                            "existing": broker_scopes[scope_value],
+                            "product_scope": scope.value,
+                            "broker_provider": provider.value,
+                            "existing": broker_keys[broker_key],
                             "duplicate": node_id,
                         },
                     )
                 )
             else:
-                broker_scopes[scope_value] = node_id
+                broker_keys[broker_key] = node_id
 
     def _validate_node_broker_compatibility(
         self,
@@ -1134,7 +1138,8 @@ class WorkflowResolver:
         from programgarden_core.nodes.base import ProductScope, BrokerProvider
 
         # 1. 워크플로우의 BrokerNode에서 (product_scope, broker_provider) 쌍 수집
-        available_brokers: Dict[str, str] = {}  # {product_scope.value: broker_provider.value}
+        #    같은 스코프에 복수 브로커(예: LS + KIS 국내주식)가 공존할 수 있으므로 Set으로 수집
+        available_brokers: Dict[str, Set[str]] = {}  # {product_scope.value: {broker_provider.value, ...}}
         for node in workflow.nodes:
             node_type = node.get("type")
             node_class = registry.get(node_type)
@@ -1148,7 +1153,7 @@ class WorkflowResolver:
             # BrokerNode 계열인지 스키마로 확인
             if self._is_broker_node(registry, node_type):
                 provider = getattr(node_class, '_broker_provider', BrokerProvider.ALL)
-                available_brokers[scope.value] = provider.value
+                available_brokers.setdefault(scope.value, set()).add(provider.value)
 
         # 2. 각 노드의 (product_scope, broker_provider)가 매칭되는지 확인
         for node in workflow.nodes:
@@ -1173,15 +1178,19 @@ class WorkflowResolver:
                 continue
 
             if scope.value not in available_brokers:
-                if scope == ProductScope.STOCK:
-                    product_label = "overseas_stock"
-                    broker_node = "OverseasStockBrokerNode"
-                elif scope == ProductScope.COIN:
-                    product_label = "coin"
-                    broker_node = "BithumbBrokerNode"
-                else:
-                    product_label = "overseas_futures"
-                    broker_node = "OverseasFuturesBrokerNode"
+                # scope → (라벨, 제안 브로커 노드) 매핑
+                scope_broker_map = {
+                    ProductScope.STOCK: ("overseas_stock", "OverseasStockBrokerNode"),
+                    ProductScope.FUTURES: ("overseas_futures", "OverseasFuturesBrokerNode"),
+                    ProductScope.KOREA_STOCK: (
+                        "korea_stock",
+                        "KoreaStockBrokerNode (LS) or KisBrokerNode (KIS)",
+                    ),
+                    ProductScope.COIN: ("coin", "BithumbBrokerNode"),
+                }
+                product_label, broker_node = scope_broker_map.get(
+                    scope, (scope.value, "a matching BrokerNode")
+                )
                 result.add(
                     build_error(
                         ErrorCode.MISSING_REQUIRED_BROKER,
@@ -1195,22 +1204,26 @@ class WorkflowResolver:
 
             # broker_provider match (ALL matches anything)
             if provider != BrokerProvider.ALL:
-                broker_provider_value = available_brokers[scope.value]
-                if broker_provider_value != BrokerProvider.ALL.value and broker_provider_value != provider.value:
+                configured_providers = available_brokers[scope.value]
+                if (
+                    provider.value not in configured_providers
+                    and BrokerProvider.ALL.value not in configured_providers
+                ):
+                    configured_label = ", ".join(sorted(configured_providers))
                     result.add(
                         build_error(
                             ErrorCode.INCOMPATIBLE_BROKER_PROVIDER,
                             (
                                 f"Node '{node.get('id')}' ({node_type}) requires "
                                 f"broker provider '{provider.value}', but the workflow has "
-                                f"'{broker_provider_value}' configured"
+                                f"'{configured_label}' configured"
                             ),
                             location=ErrorLocation(node_id=node.get("id"), node_type=node_type),
                             available_values=[provider.value, BrokerProvider.ALL.value],
-                            suggestion="Switch the broker node to one that matches this node's provider.",
+                            suggestion="Add a broker node that matches this node's provider.",
                             details={
                                 "required_provider": provider.value,
-                                "configured_provider": broker_provider_value,
+                                "configured_providers": sorted(configured_providers),
                                 "product_scope": scope.value,
                             },
                         )
