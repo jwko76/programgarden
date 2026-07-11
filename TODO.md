@@ -11,10 +11,8 @@
 
 ## 다음 작업 후보
 
-- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제)
+- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제). 사용자 app key 발급 대기 중
 - [ ] **KIS 확장 (MVP 이후 보류분)** — hashkey 헤더, tr_cont 페이지네이션, KisModifyOrderNode(정정), H0STASP0 실시간 호가, 주문가능조회 노드화, LS식 token-provider 모드
-- [ ] **Bithumb 노드 _examples/_node_guide 보완** — test_node_schema_ai_fields shape 테스트 기존 실패 6건 해소 (KIS 노드는 완비됨)
-- [ ] **BithumbHistoricalDataNode 분봉 지원** — 현재 일봉만, `/v1/candles/minutes/{unit}` 래핑
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
 - [ ] **미래에셋증권** — 공개 REST 오픈API 미확인으로 보류 (개발자센터 공개 시 재검토)
@@ -22,6 +20,11 @@
 ---
 
 ## 완료됨
+
+- [x] **빗썸 노드 AI 메타데이터 완비 + 분봉 지원** (2026-07-12, feature/bithumb-node-polish)
+  - 노드 6종 _anti_patterns/_examples/_node_guide 보완 — shape 테스트 실패 6건 해소, 스니펫 12개 validate 통과
+  - BithumbHistoricalDataNode v1.1.0: interval 필드 (day/week/month/1m~240m), executor 4-way 분기, i18n 누락 키 보강
+  - 엔진 전체 경로로 5m/day/week/month 공개 API 라이브 검증
 
 - [x] **한국투자증권(KIS) 연동 전체** (2026-07-11, feature/kis-broker) — v1.10.0/v1.16.0/v1.26.0
   - 멀티브로커: resolver 검증 키 (scope, provider) 확장 — LS+KIS 국내주식 공존

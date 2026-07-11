@@ -277,15 +277,20 @@ class BithumbMarketDataNodeExecutor(_BithumbExecutorBase):
 
 
 class BithumbHistoricalDataNodeExecutor(_BithumbExecutorBase):
-    """BithumbHistoricalDataNode executor — GET /v1/candles/days 호출.
+    """BithumbHistoricalDataNode executor — GET /v1/candles/{minutes|days|weeks|months} 호출.
 
     보안:
     - market 파라미터: ^[A-Z]+-[A-Z0-9]+$ 패턴 검증 (injection 방지)
     - count: 1~200 범위 강제
+    - interval: 허용 목록 외 값은 일봉으로 폴백
     - 공개 API — 인증 불필요
     """
 
     _MARKET_RE = __import__("re").compile(r"^[A-Z]+-[A-Z0-9]+$")
+
+    # interval 값 → 분 단위 (None이면 일/주/월봉)
+    _MINUTE_UNITS = {"1m": 1, "3m": 3, "5m": 5, "10m": 10,
+                     "15m": 15, "30m": 30, "60m": 60, "240m": 240}
 
     async def execute(
         self,
@@ -306,20 +311,39 @@ class BithumbHistoricalDataNodeExecutor(_BithumbExecutorBase):
         config = _evaluate_all_bindings(config, context, node_id)
         market = str(config.get("market", "KRW-BTC")).strip().upper()
         count  = int(config.get("count", 30))
+        interval = str(config.get("interval", "day")).strip()
 
         # 입력 검증 (시큐어 코딩 §1.3)
         if not self._MARKET_RE.match(market):
             context.log("error", f"BithumbHistoricalDataNode: 잘못된 market 형식 '{market}'", node_id)
             return _error(f"Invalid market format: {market}")
         count = max(1, min(200, count))
+        if interval not in ("day", "week", "month") and interval not in self._MINUTE_UNITS:
+            context.log("warning", f"BithumbHistoricalDataNode: 알 수 없는 interval '{interval}' → day 폴백", node_id)
+            interval = "day"
 
         try:
-            from programgarden_finance.bithumb.market.candles_days.blocks import CandlesDaysInBlock
-
             bithumb = _make_bithumb_client("", "")  # Public API
-            resp = bithumb.market().candles_days(
-                CandlesDaysInBlock(market=market, count=count)
-            ).req()
+            if interval in self._MINUTE_UNITS:
+                from programgarden_finance.bithumb.market.candles_minutes.blocks import CandlesMinutesInBlock
+                resp = bithumb.market().candles_minutes(
+                    CandlesMinutesInBlock(market=market, count=count, unit=self._MINUTE_UNITS[interval])
+                ).req()
+            elif interval == "week":
+                from programgarden_finance.bithumb.market.candles_weeks.blocks import CandlesWeeksInBlock
+                resp = bithumb.market().candles_weeks(
+                    CandlesWeeksInBlock(market=market, count=count)
+                ).req()
+            elif interval == "month":
+                from programgarden_finance.bithumb.market.candles_months.blocks import CandlesMonthsInBlock
+                resp = bithumb.market().candles_months(
+                    CandlesMonthsInBlock(market=market, count=count)
+                ).req()
+            else:
+                from programgarden_finance.bithumb.market.candles_days.blocks import CandlesDaysInBlock
+                resp = bithumb.market().candles_days(
+                    CandlesDaysInBlock(market=market, count=count)
+                ).req()
 
             if resp.error_msg:
                 context.log("error", f"BithumbHistoricalDataNode: {resp.error_msg}", node_id)
@@ -349,7 +373,7 @@ class BithumbHistoricalDataNodeExecutor(_BithumbExecutorBase):
                 }
             ]
 
-            context.log("info", f"BithumbHistoricalDataNode: {market} {len(values)}개 캔들 조회", node_id)
+            context.log("info", f"BithumbHistoricalDataNode: {market} {interval} {len(values)}개 캔들 조회", node_id)
             return {"values": values, "time_series": time_series}
 
         except Exception as exc:

@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-12 — 빗썸 노드 AI 메타데이터 완비 + 분봉 지원 (feature/bithumb-node-polish)
+
+**작업자**: Claude (jwko76 요청)
+
+### 내용
+
+**Task 1 — 빗썸 노드 6종 AI 메타데이터 보완 (기존 실패 6건 해소)**
+- Broker/Account/MarketData/Historical/NewOrder/CancelOrder에 누락된 `_anti_patterns`/`_examples`/`_node_guide` 추가
+  (CancelOrder는 `_features`도 누락이었음, 존재하지 않는 BithumbOpenOrdersNode 언급 제거)
+- 예제 스니펫 12개 전부 `WorkflowExecutor.validate()` 통과 확인
+- `test_node_schema_ai_fields` shape 테스트 6건 실패 → 0건, core 전체 1546 passed
+
+**Task 2 — BithumbHistoricalDataNode 분봉/주봉/월봉 지원 (v1.1.0)**
+- 노드: `interval` 필드 추가 (day/week/month/1m/3m/5m/10m/15m/30m/60m/240m, 기본 day) + ENUM FieldSchema
+- executor: interval → SDK 분기 (candles_minutes(unit)/days/weeks/months), 허용 외 값은 day 폴백 + 경고
+- finance SDK는 이미 4종 캔들 전부 래핑돼 있어 변경 없음
+- i18n: **기존 누락이던 BithumbHistoricalDataNode 노드/필드 키 전체** + interval enum 라벨 11종 (ko/en)
+- 라이브 검증: 엔진 전체 경로(ProgramGarden.run)로 5m/day/week/month 공개 API 실호출 확인
+
+---
+
 ## 2026-07-11 — KIS 실전 API 검증 + 현재가 응답 필드 수정 (main)
 
 **작업자**: Claude (jwko76 요청)
