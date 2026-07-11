@@ -1,0 +1,119 @@
+{
+  "id": "92-kis-rsi-bot",
+  "name": "한국투자증권 RSI 과매도 자동매수 봇 (모의투자)",
+  "description": "장중 5분마다 삼성전자 일봉 30개로 RSI(14) 산출 → 과매도(30 이하) 시 모의투자 지정가 매수. ThrottleNode로 중복 주문 방지.",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "StartNode",
+      "position": {"x": 50, "y": 300}
+    },
+    {
+      "id": "broker",
+      "type": "KisBrokerNode",
+      "credential_id": "kis_cred",
+      "paper_trading": true,
+      "position": {"x": 230, "y": 300}
+    },
+    {
+      "id": "schedule",
+      "type": "ScheduleNode",
+      "cron": "*/5 9-15 * * 1-5",
+      "timezone": "Asia/Seoul",
+      "enabled": true,
+      "max_duration_hours": 8,
+      "position": {"x": 430, "y": 300}
+    },
+    {
+      "id": "account",
+      "type": "KisAccountNode",
+      "position": {"x": 650, "y": 480}
+    },
+    {
+      "id": "candles",
+      "type": "KisHistoricalDataNode",
+      "symbol": "005930",
+      "count": 30,
+      "position": {"x": 650, "y": 120}
+    },
+    {
+      "id": "rsi",
+      "type": "ConditionNode",
+      "plugin": "RSI",
+      "items": {
+        "from": "{{ nodes.candles.time_series }}",
+        "extract": {
+          "symbol": "{{ item.symbol }}",
+          "exchange": "{{ item.exchange }}",
+          "date": "{{ row.date }}",
+          "close": "{{ row.close }}"
+        }
+      },
+      "fields": {
+        "period": 14,
+        "threshold": 30,
+        "direction": "below"
+      },
+      "position": {"x": 900, "y": 120}
+    },
+    {
+      "id": "throttle",
+      "type": "ThrottleNode",
+      "min_interval_sec": 300,
+      "position": {"x": 1100, "y": 120}
+    },
+    {
+      "id": "buy_order",
+      "type": "KisNewOrderNode",
+      "side": "buy",
+      "order_type": "market",
+      "order": {
+        "symbol": "{{ item.symbol }}",
+        "quantity": "1"
+      },
+      "resilience": {
+        "fallback": {"mode": "skip"}
+      },
+      "position": {"x": 1300, "y": 120}
+    }
+  ],
+  "edges": [
+    {"from": "start", "to": "broker"},
+    {"from": "broker", "to": "schedule"},
+    {"from": "schedule", "to": "account"},
+    {"from": "schedule", "to": "candles"},
+    {"from": "candles", "to": "rsi"},
+    {"from": "rsi", "to": "throttle"},
+    {"from": "throttle", "to": "buy_order"}
+  ],
+  "credentials": [
+    {
+      "credential_id": "kis_cred",
+      "type": "broker_kis",
+      "data": [
+        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 (앞 8자리)"},
+        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드 (뒤 2자리)"}
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_strategy",
+      "content": "## KIS RSI 과매도 자동매수 봇 (모의투자)\n\n**전략**: RSI(14) 역추세 소량 매수\n\n**캔들**: KisHistoricalDataNode (FHKST03010100)\n  → time_series 출력을 ConditionNode에 직결\n\n**매수 조건**: RSI < 30 (과매도)\n  → 5분마다 최대 1회 (ThrottleNode 300초)\n  → 시장가 1주 매수 (VTTC0802U — 모의)\n\n**스케줄**: 평일 09~15시 (장중)\n\n**주의**: paper_trading=true 상태에서 충분히 검증한 뒤\n실전 전환하세요. ProgramGarden.validate_deep() 필수.",
+      "color": 3,
+      "width": 360,
+      "height": 250,
+      "position": {"x": 30, "y": 30}
+    },
+    {
+      "id": "note_account",
+      "content": "KisAccountNode 출력으로\n예수금·잔고 모니터링\n(주문 직접 연결 없음 — 표시용)",
+      "color": 1,
+      "width": 200,
+      "height": 80,
+      "position": {"x": 630, "y": 580}
+    }
+  ]
+}

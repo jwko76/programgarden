@@ -5,6 +5,57 @@
 
 ---
 
+## 2026-07-11 — 한국투자증권(KIS) 연동 + 멀티브로커 프레임워크 (feature/kis-broker)
+
+**작업자**: Claude (jwko76 요청)
+**커밋**: feat(resolver) → feat(core) → feat(kis) → feat(executor) → docs/release
+
+### 내용
+
+**Phase A — 엔진 멀티브로커 지원**
+- `resolver.py` 브로커 중복 검증 키를 `product_scope` 단독 → `(product_scope, broker_provider)` 조합으로 확장
+- `available_brokers`를 `Dict[scope, Set[provider]]`로 변경 (기존 덮어쓰기 버그 해결)
+- 에러 메시지 scope 라벨 버그 수정 (KOREA_STOCK/COIN이 overseas_futures로 오표기)
+- `_auto_inject_connection`은 이미 scope+provider 매칭 — 변경 불필요 확인
+- 같은 국내주식 스코프에 LS `KoreaStockBrokerNode` + `KisBrokerNode` 공존 가능
+
+**Phase B — finance SDK `kis/` 패키지 (v1.10.0)**
+- `KisTokenManager`: 접근토큰 24h 파일 캐시(`~/.programgarden/kis_token_*.json`, 재발급 분당 1회 제한 대응), approval_key 관리
+- `GenericKisTR`: tr_id (실전, 모의) 튜플 자동 분기, rt_cd 봉투 파싱, 토큰 만료 시 1회 재발급 재시도
+- TR 7종: 현재가/호가/일봉, 잔고/매수가능, 현금매수·매도/정정취소
+- `KisRealBase`: 파이프 구분 프레임, PINGPONG 에코, AES-256-CBC 체결통보 복호화(key/iv 레이스 버퍼링), 재연결 자동 재구독
+- 실시간 2종: 체결가 H0STCNT0, 체결통보 H0STCNI0/H0STCNI9
+- pycryptodome 의존성 추가, 예제 스크립트 4종
+
+**Phase C — core 노드 6종 (v1.16.0)**
+- `BrokerProvider.KIS = "koreainvestment.com"` 추가
+- KisBrokerNode(paper_trading 필드) / KisAccountNode / KisMarketDataNode / KisHistoricalDataNode / KisNewOrderNode / KisCancelOrderNode
+- 전 노드 `_examples`(스니펫 12종 검증 통과)·`_node_guide` 완비, i18n en/ko
+- `test_registry_node_count` 기준선 69→81 (기존 실패 수정)
+
+**Phase D — 엔진 executor (v1.26.0)**
+- `kis_executors.py` 6종 — deep_validate에서 Kis 클라이언트 절대 미생성(토큰 발급=라이브 호출)
+- `deep_fixtures.py` Kis 분기 + fixture 3종
+- deep_validate 테스트 6종 (무 API 호출 검증, LS+KIS 멀티브로커 통과)
+
+**Phase E — 예제·문서**
+- 워크플로우 예제 90(계좌)/91(시세)/92(RSI 봇, 89번의 KIS 버전) — 전부 deep_validate 가상 풀-실행 통과
+- `00-workflow-guide.md` KIS 섹션 + 멀티브로커 바인딩 규칙, `docs/kis_finance_guide.md` 신규
+
+### 테스트
+
+- finance: KIS 신규 57 passed (tr_id 실전/모의 매트릭스, AES 테스트벡터, 토큰 캐시), 전체 1638 passed
+- core: 809 passed (Bithumb 메타데이터 shape 기존 실패 6건은 TODO로 이관)
+- programgarden: deep_validate 47 passed, split 16 passed, 예제 검증 회귀 없음
+
+### 참고
+
+- 미래에셋증권은 공개 REST 오픈API 미확인으로 보류
+- 키움증권은 다음 브랜치에서 동일 패턴으로 진행 예정
+- 남은 기존 실패는 전부 main에서도 동일 (venv community 미설치 22건, LS field metadata 164건, Bithumb shape 6건)
+
+---
+
 ## 2026-06-23 — upstream merge v1.24.1 + 형상관리 재구성
 
 **작업자**: Claude (jwko76 요청)

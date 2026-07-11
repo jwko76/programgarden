@@ -465,10 +465,13 @@ Each broker type serves specific node types. Do not mix:
 |--------|-----------------|
 | OverseasStockBrokerNode | OverseasStock* nodes |
 | OverseasFuturesBrokerNode | OverseasFutures* nodes |
-| KoreaStockBrokerNode | KoreaStock* nodes |
+| KoreaStockBrokerNode | KoreaStock* nodes (LS증권 국내주식) |
+| KisBrokerNode | Kis* nodes (한국투자증권 국내주식) |
 | BithumbBrokerNode | Bithumb* nodes (coin) |
 
-**Note**: `BithumbMarketDataNode` uses the public Bithumb API and does **not** require `BithumbBrokerNode`. All other Bithumb nodes (Account, NewOrder, CancelOrder) require it.
+**Note**: `BithumbMarketDataNode` uses the public Bithumb API and does **not** require `BithumbBrokerNode`. All other Bithumb nodes (Account, NewOrder, CancelOrder) require it. KIS quotes (`KisMarketDataNode`) DO require `KisBrokerNode` — the KIS API authenticates every call.
+
+**Multi-broker (same scope)**: brokers are keyed by `(product_scope, broker_provider)`. Two brokers of the *same* provider and scope are rejected, but LS `KoreaStockBrokerNode` and `KisBrokerNode` (both `korea_stock`) can coexist in one workflow — each `KoreaStock*` / `Kis*` node auto-binds to its own provider's connection. A provider-agnostic node in a multi-broker scope binds to the first matching broker in declaration order.
 
 ---
 
@@ -642,6 +645,24 @@ All display nodes output:
 | BithumbNewOrderNode | order_id | string | Shortcut to result.order_id |
 | BithumbCancelOrderNode | cancel_result | order_result | Cancel result (order_id, status) |
 | BithumbCancelOrderNode | cancelled_order_id | string | Cancelled order ID |
+
+### KIS Nodes (한국투자증권 국내주식)
+
+| Node | Port | Type | Description |
+|------|------|------|-------------|
+| KisBrokerNode | connection | broker_connection | KIS API connection incl. `paper_trading` flag (auto-injected) |
+| KisAccountNode | balance | balance_data | Deposit summary (deposit, orderable_amount, total_evaluation, total_profit_loss) |
+| KisAccountNode | positions | position_data | Held stocks (symbol, symbol_name, quantity, avg_buy_price, current_price, profit_loss) |
+| KisAccountNode | held_symbols | symbol_list | Held symbol codes (e.g. `[{"symbol": "005930"}]`) |
+| KisMarketDataNode | values | market_data | Price array (symbol, current_price, change_rate, volume, per, pbr, …) |
+| KisHistoricalDataNode | time_series | symbol_series | ConditionNode-ready `[{symbol, exchange: "KRX", time_series}]` (oldest-first) |
+| KisHistoricalDataNode | values | candle_data | Raw daily candles, newest-first (symbol, date, open, high, low, close, volume) |
+| KisNewOrderNode | result | order_result | Order result (order_no, symbol, side, quantity, price, paper_trading, status) |
+| KisNewOrderNode | order_no | string | Shortcut to result.order_no |
+| KisCancelOrderNode | cancel_result | order_result | Cancel result (order_no, status) |
+| KisCancelOrderNode | cancelled_order_no | string | Cancelled order number |
+
+**Credential `broker_kis`**: `appkey`, `appsecret`, `account_no` (CANO 8자리), `account_product_code` (기본 `01`). `KisBrokerNode.paper_trading=true` switches to the KIS paper server and order TR IDs flip automatically (TTTC↔VTTC).
 
 ### Messaging Nodes
 
