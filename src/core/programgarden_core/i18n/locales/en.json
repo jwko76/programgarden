@@ -1320,5 +1320,36 @@
   "enums.bithumb_side.ask": "Sell (ask)",
   "enums.bithumb_order_type.limit": "Limit order",
   "enums.bithumb_order_type.price": "Market buy (by KRW amount)",
-  "enums.bithumb_order_type.market": "Market sell (by coin quantity)"
+  "enums.bithumb_order_type.market": "Market sell (by coin quantity)",
+
+  "nodes.KisBrokerNode.description": "Sets up a Korea Investment & Securities (KIS Developers) OpenAPI connection for domestic Korean stocks. Acts as the authentication gateway — downstream account, market data, and order nodes automatically inherit the broker connection via DAG traversal. References broker_kis credentials (appkey + appsecret + account_no + account_product_code) via credential_id. Set paper_trading=true to connect to the KIS paper trading server. Can coexist with the LS KoreaStockBrokerNode in the same workflow (connections are separated per provider). Typical connection: StartNode → KisBrokerNode → KisAccountNode / KisMarketDataNode / KisNewOrderNode.",
+  "nodes.KisBrokerNode.name": "KIS Broker",
+  "nodes.KisAccountNode.description": "Fetches KIS stock holdings, deposits, and valuation as a one-time REST API snapshot (TR TTTC8434R, paper VTTC8434R). Outputs held_symbols (held symbol codes), balance (deposit, orderable cash, total valuation), and positions (per-symbol quantity, average buy price, profit/loss). Requires an upstream KisBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KisAccountNode.name": "KIS Account",
+  "nodes.KisMarketDataNode.description": "Fetches KIS domestic stock current prices as a one-time REST API snapshot (TR FHKST01010100). Enter symbol codes comma-separated in the symbols field (e.g. 005930,000660). Unlike Bithumb's public API, KIS quotes also require appkey authentication — an upstream KisBrokerNode is required. Outputs values (current price, change rate, volume, PER/PBR per symbol). Can be used as an AI Agent tool.",
+  "nodes.KisMarketDataNode.name": "KIS Market Data",
+  "nodes.KisHistoricalDataNode.description": "Fetches KIS domestic stock daily OHLCV candles (TR FHKST03010100). The time_series output port returns [{symbol, exchange, time_series}] ready to connect directly to ConditionNode (RSI/BollingerBands). Candles are auto-sorted oldest-first for indicator plugins. Requires an upstream KisBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KisHistoricalDataNode.name": "KIS Daily Candles",
+  "nodes.KisNewOrderNode.description": "Places a KIS domestic stock cash buy/sell order (real TTTC0802U/TTTC0801U, paper VTTC0802U/VTTC0801U — auto-selected by the broker's paper_trading setting). Configure side (buy/sell) and order_type (limit/market). Built-in 5-second rate limit and duplicate order prevention. Retry disabled by default. Requires an upstream KisBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KisNewOrderNode.name": "KIS New Order",
+  "nodes.KisCancelOrderNode.description": "Cancels a pending KIS order (real TTTC0803U, paper VTTC0803U). Bind the order number (ODNO) to cancel to the original_order_no field; omit quantity to cancel the full remaining amount. Outputs cancel_result and cancelled_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KisBrokerNode.",
+  "nodes.KisCancelOrderNode.name": "KIS Cancel Order",
+
+  "fields.KisBrokerNode.credential_id": "Select KIS credentials (broker_kis type: appkey, appsecret, account_no, account_product_code)",
+  "fields.KisBrokerNode.paper_trading": "Paper trading mode (true: KIS paper server, false: live server)",
+  "fields.KisMarketDataNode.symbols": "Symbol codes (comma-separated 6-digit codes, e.g. 005930,000660)",
+  "fields.KisHistoricalDataNode.symbol": "Symbol code (6-digit, e.g. 005930)",
+  "fields.KisHistoricalDataNode.count": "Number of daily candles to fetch (1-100)",
+  "fields.KisNewOrderNode.side": "Order side (buy / sell)",
+  "fields.KisNewOrderNode.order_type": "Order type (limit: limit order, market: market order)",
+  "fields.KisNewOrderNode.order": "Order info {symbol, quantity, price?}",
+  "fieldNames.KisNewOrderNode.order": "Order",
+  "fields.KisCancelOrderNode.original_order_no": "KIS order number (ODNO) to cancel",
+  "fields.KisCancelOrderNode.quantity": "Quantity to cancel (omit for full remaining amount)",
+
+  "enums.kis_side.buy": "Buy",
+  "enums.kis_side.sell": "Sell",
+  "enums.kis_order_type.limit": "Limit order",
+  "enums.kis_order_type.market": "Market order",
+  "enums.broker_provider.koreainvestment.com": "Korea Investment & Securities"
 }

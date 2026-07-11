@@ -111,6 +111,11 @@ from programgarden_core.nodes.account_bithumb import BithumbAccountNode
 from programgarden_core.nodes.market_bithumb import BithumbMarketDataNode
 from programgarden_core.nodes.historical_bithumb import BithumbHistoricalDataNode
 from programgarden_core.nodes.order_bithumb import BithumbNewOrderNode, BithumbCancelOrderNode
+from programgarden_core.nodes.broker_kis import KisBrokerNode
+from programgarden_core.nodes.account_kis import KisAccountNode
+from programgarden_core.nodes.market_kis import KisMarketDataNode
+from programgarden_core.nodes.historical_kis import KisHistoricalDataNode
+from programgarden_core.nodes.order_kis import KisNewOrderNode, KisCancelOrderNode
 
 __all__ = [
     # Base
@@ -217,4 +222,11 @@ __all__ = [
     "BithumbHistoricalDataNode",
     "BithumbNewOrderNode",
     "BithumbCancelOrderNode",
+    # KIS - 한국투자증권 (국내주식)
+    "KisBrokerNode",
+    "KisAccountNode",
+    "KisMarketDataNode",
+    "KisHistoricalDataNode",
+    "KisNewOrderNode",
+    "KisCancelOrderNode",
 ]

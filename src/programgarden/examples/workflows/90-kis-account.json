@@ -1,0 +1,67 @@
+{
+  "id": "90-kis-account",
+  "name": "한국투자증권 계좌 잔고 대시보드",
+  "description": "KIS 모의투자 계좌의 예수금·보유 종목·평가손익을 조회해 표시합니다. KisBrokerNode(paper_trading) → KisAccountNode → 표시 노드.",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "StartNode",
+      "position": {"x": 50, "y": 200}
+    },
+    {
+      "id": "broker",
+      "type": "KisBrokerNode",
+      "credential_id": "kis_cred",
+      "paper_trading": true,
+      "position": {"x": 250, "y": 200}
+    },
+    {
+      "id": "account",
+      "type": "KisAccountNode",
+      "position": {"x": 500, "y": 200}
+    },
+    {
+      "id": "balance_display",
+      "type": "SummaryDisplayNode",
+      "title": "예수금·평가금액",
+      "data": "{{ nodes.account.balance }}",
+      "position": {"x": 750, "y": 100}
+    },
+    {
+      "id": "positions_display",
+      "type": "TableDisplayNode",
+      "title": "보유 종목",
+      "columns": ["symbol", "symbol_name", "quantity", "avg_buy_price", "current_price", "profit_loss", "profit_loss_rate"],
+      "data": "{{ nodes.account.positions }}",
+      "position": {"x": 750, "y": 320}
+    }
+  ],
+  "edges": [
+    {"from": "start", "to": "broker"},
+    {"from": "broker", "to": "account"},
+    {"from": "account", "to": "balance_display"},
+    {"from": "account", "to": "positions_display"}
+  ],
+  "credentials": [
+    {
+      "credential_id": "kis_cred",
+      "type": "broker_kis",
+      "data": [
+        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 (앞 8자리)"},
+        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드 (뒤 2자리)"}
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_setup",
+      "content": "## KIS 계좌 조회\n\n**준비**: KIS Developers(apiportal.koreainvestment.com)에서\nappkey/appsecret 발급 + 모의투자 신청\n\n**paper_trading: true** — 모의투자 서버 접속\n(실계좌는 false로 변경 + 실전 appkey 사용)\n\n**출력**:\n- balance: 예수금·주문가능현금·총평가금액\n- positions: 종목별 수량·매입가·평가손익\n- held_symbols: 보유 종목코드 목록",
+      "color": 3,
+      "width": 320,
+      "height": 220,
+      "position": {"x": 30, "y": 30}
+    }
+  ]
+}

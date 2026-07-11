@@ -1,0 +1,81 @@
+{
+  "id": "91-kis-market-data",
+  "name": "한국투자증권 현재가·일봉 조회",
+  "description": "KIS API로 삼성전자·SK하이닉스 현재가를 조회하고, 삼성전자 60일 일봉을 캔들 차트로 표시합니다.",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "StartNode",
+      "position": {"x": 50, "y": 250}
+    },
+    {
+      "id": "broker",
+      "type": "KisBrokerNode",
+      "credential_id": "kis_cred",
+      "paper_trading": true,
+      "position": {"x": 250, "y": 250}
+    },
+    {
+      "id": "market",
+      "type": "KisMarketDataNode",
+      "symbols": "005930,000660",
+      "position": {"x": 500, "y": 120}
+    },
+    {
+      "id": "candles",
+      "type": "KisHistoricalDataNode",
+      "symbol": "005930",
+      "count": 60,
+      "position": {"x": 500, "y": 380}
+    },
+    {
+      "id": "price_table",
+      "type": "TableDisplayNode",
+      "title": "현재가",
+      "columns": ["symbol", "current_price", "change", "change_rate", "volume", "per", "pbr"],
+      "data": "{{ nodes.market.values }}",
+      "position": {"x": 780, "y": 120}
+    },
+    {
+      "id": "candle_chart",
+      "type": "CandlestickChartNode",
+      "title": "삼성전자 일봉 (60일)",
+      "data": "{{ nodes.candles.values }}",
+      "time_field": "date",
+      "open_field": "open",
+      "high_field": "high",
+      "low_field": "low",
+      "close_field": "close",
+      "position": {"x": 780, "y": 380}
+    }
+  ],
+  "edges": [
+    {"from": "start", "to": "broker"},
+    {"from": "broker", "to": "market"},
+    {"from": "broker", "to": "candles"},
+    {"from": "market", "to": "price_table"},
+    {"from": "candles", "to": "candle_chart"}
+  ],
+  "credentials": [
+    {
+      "credential_id": "kis_cred",
+      "type": "broker_kis",
+      "data": [
+        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 (앞 8자리)"},
+        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드 (뒤 2자리)"}
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_market",
+      "content": "## KIS 시세 조회\n\n**KisMarketDataNode**: 현재가 (FHKST01010100)\n- symbols에 콤마 구분 종목코드\n- 빗썸 공개 API와 달리 **브로커 연결 필수**\n\n**KisHistoricalDataNode**: 일봉 (FHKST03010100)\n- 최대 100건, time_series 포트는\n  ConditionNode(RSI 등)에 직결 가능\n\n시세는 모의투자 여부와 무관하게 실전 데이터",
+      "color": 3,
+      "width": 320,
+      "height": 200,
+      "position": {"x": 30, "y": 30}
+    }
+  ]
+}

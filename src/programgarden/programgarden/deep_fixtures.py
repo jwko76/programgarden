@@ -352,6 +352,20 @@ def broker_connection_fixture(
                 "secret_key": "DEEP_VALIDATE_SECRET_KEY",
             },
         }
+    # 주의: "Kis" 분기는 "Korea" 분기보다 먼저 와야 함 (둘 다 korea_stock 스코프)
+    if "Kis" in node_type:
+        return {
+            "connected": True,
+            "connection": {
+                "provider": "koreainvestment.com",
+                "product": "korea_stock",
+                "paper_trading": bool(config.get("paper_trading", False)),
+                "appkey": "DEEP_VALIDATE_APPKEY",
+                "appsecret": "DEEP_VALIDATE_APPSECRET",
+                "account_no": "DEEP_VALIDATE_ACCOUNT",
+                "account_product_code": "01",
+            },
+        }
     if "Futures" in node_type:
         product = "overseas_futures"
     elif "Korea" in node_type:
@@ -438,6 +452,81 @@ def bithumb_historical_fixture(market: str = "KRW-BTC", n: int = 30) -> Dict[str
         })
     # time_series: ConditionNode 포맷 (oldest-first)
     time_series = [{"symbol": market, "exchange": "BITHUMB", "time_series": candles}]
+    # values: 최신→과거 순 (API 응답 방향)
+    return {"values": list(reversed(candles)), "time_series": time_series}
+
+
+def kis_account_fixture() -> Dict[str, Any]:
+    """KisAccountNode deep fixture."""
+    return {
+        "balance": {
+            "deposit": 10000000.0,
+            "orderable_amount": 9990000.0,
+            "total_evaluation": 10719000.0,
+            "total_purchase": 700000.0,
+            "total_profit_loss": 19000.0,
+        },
+        "positions": [
+            {
+                "symbol": "005930",
+                "symbol_name": "삼성전자",
+                "quantity": 10.0,
+                "orderable_quantity": 10.0,
+                "avg_buy_price": 70000.0,
+                "current_price": 71900.0,
+                "evaluation_amount": 719000.0,
+                "profit_loss": 19000.0,
+                "profit_loss_rate": 2.71,
+            }
+        ],
+        "held_symbols": [{"symbol": "005930"}],
+    }
+
+
+def kis_market_data_fixture(symbols_raw: str = "005930") -> Dict[str, Any]:
+    """KisMarketDataNode deep fixture."""
+    symbol_list = [s.strip() for s in str(symbols_raw).split(",") if s.strip()]
+    if not symbol_list:
+        symbol_list = ["005930"]
+    values = []
+    for idx, symbol in enumerate(symbol_list):
+        price = 71900.0 + idx * 1000.0
+        values.append({
+            "symbol": symbol,
+            "current_price": price,
+            "change": -100.0,
+            "change_rate": -0.14,
+            "open_price": price + 100.0,
+            "high_price": price + 200.0,
+            "low_price": price - 400.0,
+            "volume": 9999999.0 + idx,
+            "trade_amount": price * (9999999.0 + idx),
+            "per": 12.34,
+            "pbr": 1.23,
+        })
+    return {"values": values}
+
+
+def kis_historical_fixture(symbol: str = "005930", n: int = 30) -> Dict[str, Any]:
+    """KisHistoricalDataNode deep fixture — oldest-first OHLCV 캔들 시리즈."""
+    base_price = 70000.0
+    candles = []
+    for i in range(n):
+        date = (_FIXTURE_ANCHOR + timedelta(days=i)).strftime("%Y%m%d")
+        # 완만한 상승-하강 패턴 (RSI 실계산을 위해 변동 부여)
+        delta = (i - n // 2) * 200.0
+        close = base_price + delta
+        candles.append({
+            "symbol": symbol,
+            "date": date,
+            "open": close - 100.0,
+            "high": close + 300.0,
+            "low": close - 300.0,
+            "close": close,
+            "volume": 1000000.0 + i * 1000.0,
+        })
+    # time_series: ConditionNode 포맷 (oldest-first)
+    time_series = [{"symbol": symbol, "exchange": "KRX", "time_series": candles}]
     # values: 최신→과거 순 (API 응답 방향)
     return {"values": list(reversed(candles)), "time_series": time_series}
 

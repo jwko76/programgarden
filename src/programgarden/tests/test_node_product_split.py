@@ -152,6 +152,108 @@ class TestResolverBrokerMatching:
         assert result.is_valid, f"검증 실패: {result.errors}"
 
 
+class TestMultiBrokerCoexistence:
+    """같은 product_scope 내 복수 브로커(LS + KIS) 공존 검증"""
+
+    _KIS_CRED = {
+        "credential_id": "kis_cred",
+        "type": "broker_kis",
+        "data": [
+            {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+            {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+            {"key": "account_no", "value": "", "type": "text", "label": "계좌번호"},
+            {"key": "account_product_code", "value": "01", "type": "text", "label": "상품코드"},
+        ],
+    }
+    _LS_CRED = {"credential_id": "ls_cred", "type": "broker_ls_korea_stock", "data": []}
+
+    def test_ls_kis_korea_stock_coexist(self):
+        """LS + KIS 국내주식 브로커 공존 → 검증 통과"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-multi-broker-coexist",
+            "name": "LS+KIS 공존 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "ls_broker", "type": "KoreaStockBrokerNode", "credential_id": "ls_cred"},
+                {"id": "kis_broker", "type": "KisBrokerNode", "credential_id": "kis_cred"},
+                {"id": "ls_account", "type": "KoreaStockAccountNode"},
+                {"id": "kis_account", "type": "KisAccountNode"},
+            ],
+            "edges": [
+                {"from": "start", "to": "ls_broker"},
+                {"from": "start", "to": "kis_broker"},
+                {"from": "ls_broker", "to": "ls_account"},
+                {"from": "kis_broker", "to": "kis_account"},
+            ],
+            "credentials": [self._LS_CRED, self._KIS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert result.is_valid, f"검증 실패: {result.errors}"
+
+    def test_duplicate_kis_broker_error(self):
+        """같은 (scope, provider) KIS 브로커 2개 → 중복 에러"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-dup-kis-broker",
+            "name": "KIS 중복 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "broker1", "type": "KisBrokerNode", "credential_id": "kis_cred"},
+                {"id": "broker2", "type": "KisBrokerNode", "credential_id": "kis_cred"},
+            ],
+            "edges": [
+                {"from": "start", "to": "broker1"},
+                {"from": "start", "to": "broker2"},
+            ],
+            "credentials": [self._KIS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert not result.is_valid
+        assert any("Duplicate" in e.message for e in result.errors)
+
+    def test_kis_node_with_only_ls_broker_error(self):
+        """KIS 노드 + LS 브로커만 존재 → 프로바이더 불일치 에러"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-kis-node-ls-broker",
+            "name": "프로바이더 불일치 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "ls_broker", "type": "KoreaStockBrokerNode", "credential_id": "ls_cred"},
+                {"id": "kis_account", "type": "KisAccountNode"},
+            ],
+            "edges": [
+                {"from": "start", "to": "ls_broker"},
+                {"from": "ls_broker", "to": "kis_account"},
+            ],
+            "credentials": [self._LS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert not result.is_valid
+        assert any(e.code == "INCOMPATIBLE_BROKER_PROVIDER" for e in result.errors)
+
+    def test_kis_only_korea_stock_valid(self):
+        """KIS 브로커 단독 국내주식 워크플로우 → 검증 통과"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-kis-only",
+            "name": "KIS 단독 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+                {"id": "market", "type": "KisMarketDataNode", "symbols": "005930"},
+            ],
+            "edges": [
+                {"from": "start", "to": "broker"},
+                {"from": "broker", "to": "market"},
+            ],
+            "credentials": [self._KIS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert result.is_valid, f"검증 실패: {result.errors}"
+
+
 class TestExecutorNodeTypeMapping:
     """Executor 분리 노드 타입 매핑 검증"""
 

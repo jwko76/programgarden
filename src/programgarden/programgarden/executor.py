@@ -15781,6 +15781,8 @@ class WorkflowExecutor:
             "KoreaStockRealOrderEventNode": RealOrderEventNodeExecutor(),
             # 빗썸 (코인/암호화폐) — lazy import to avoid circular dependency
             **self._init_bithumb_executors(),
+            # 한국투자증권 (국내주식) — lazy import to avoid circular dependency
+            **self._init_kis_executors(),
             # Data nodes
             "SQLiteNode": SQLiteNodeExecutor(),
             # External market data nodes (credential 불필요, 외부 API)
@@ -15813,6 +15815,29 @@ class WorkflowExecutor:
             }
         except ImportError as exc:
             logger.warning(f"Bithumb executors를 로드할 수 없습니다: {exc}")
+            return {}
+
+    def _init_kis_executors(self) -> Dict[str, "NodeExecutorBase"]:
+        """한국투자증권(KIS) executor 딕셔너리 (lazy import으로 순환 참조 방지)."""
+        try:
+            from programgarden.kis_executors import (
+                KisBrokerNodeExecutor,
+                KisAccountNodeExecutor,
+                KisMarketDataNodeExecutor,
+                KisHistoricalDataNodeExecutor,
+                KisNewOrderNodeExecutor,
+                KisCancelOrderNodeExecutor,
+            )
+            return {
+                "KisBrokerNode": KisBrokerNodeExecutor(),
+                "KisAccountNode": KisAccountNodeExecutor(),
+                "KisMarketDataNode": KisMarketDataNodeExecutor(),
+                "KisHistoricalDataNode": KisHistoricalDataNodeExecutor(),
+                "KisNewOrderNode": KisNewOrderNodeExecutor(),
+                "KisCancelOrderNode": KisCancelOrderNodeExecutor(),
+            }
+        except ImportError as exc:
+            logger.warning(f"KIS executors를 로드할 수 없습니다: {exc}")
             return {}
 
     def validate(
