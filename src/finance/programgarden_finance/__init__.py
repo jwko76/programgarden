@@ -190,6 +190,28 @@ from .bithumb.deposit_withdrawal import withdraws_krw as bithumb_withdraws_krw
 from .bithumb.deposit_withdrawal import withdraw_detail as bithumb_withdraw_detail
 from .bithumb.deposit_withdrawal import withdraws_chance as bithumb_withdraws_chance
 from .bithumb.deposit_withdrawal import withdraw_coin_addresses as bithumb_withdraw_coin_addresses
+
+from . import kis
+from .kis import Kis, KisTokenManager
+from .kis.real import (
+    KisReal,
+    RealCcnl,
+    RealOrderNotice,
+)
+from .kis.real_base import KisSubscriptionLimitExceeded
+from .kis.real.ccnl.blocks import CcnlRealResponse
+from .kis.real.order_notice.blocks import OrderNoticeRealResponse
+from .kis import quotations as kis_quotations
+from .kis import accno as kis_accno
+from .kis import order as kis_order
+from .kis.quotations import inquire_price as kis_inquire_price
+from .kis.quotations import inquire_asking_price as kis_inquire_asking_price
+from .kis.quotations import inquire_daily_itemchartprice as kis_inquire_daily_itemchartprice
+from .kis.accno import inquire_balance as kis_inquire_balance
+from .kis.accno import inquire_psbl_order as kis_inquire_psbl_order
+from .kis.order import order_cash as kis_order_cash
+from .kis.order import order_rvsecncl as kis_order_rvsecncl
+
 from .ls.futureoption.accno import t0441
 from .ls.korea_stock.etc import t1411
 from .ls.korea_stock.indtp import t1485
@@ -477,6 +499,27 @@ __all__ = [
     RealOrderbook,
     OrderbookRealResponse,
     OrderbookRealUnit,
+
+    kis,
+    Kis,
+    KisTokenManager,
+    kis_quotations,
+    kis_accno,
+    kis_order,
+    kis_inquire_price,
+    kis_inquire_asking_price,
+    kis_inquire_daily_itemchartprice,
+    kis_inquire_balance,
+    kis_inquire_psbl_order,
+    kis_order_cash,
+    kis_order_rvsecncl,
+
+    KisReal,
+    KisSubscriptionLimitExceeded,
+    RealCcnl,
+    RealOrderNotice,
+    CcnlRealResponse,
+    OrderNoticeRealResponse,
     t0441,
     t1411,
     t1485,
