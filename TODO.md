@@ -12,6 +12,13 @@
 ## 다음 작업 후보
 
 - [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제). 사용자 app key 발급 대기 중
+- [ ] **조건 플러그인 크로스 트리거 확대** — RSI v3.1.0 패턴(직전 캔들 지표값 비교 + prev_* 필드 + 돌파 캔들만 signal 마킹)을 다른 레벨형 플러그인에 복제. 알림 중복 방지 (docs/signal_dedup_migration_guide.md 참조)
+  - **Phase 1 — 오실레이터 (RSI와 동일 구조, 임계값 1개)**: stochastic(`cross_oversold`/`cross_overbought`), williams_r, cci, mfi, connors_rsi, ultimate_oscillator, z_score, mean_reversion — 각각 direction enum 2종 추가 + prev 지표값 + 테스트 (RSI test_rsi_plugin.py 템플릿)
+  - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
+  - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
+  - **Phase 0 (선행 검증)**: 기존 크로스형 플러그인들(macd bullish_cross, ma_cross, aroon cross_up, coppock zero_cross, trix, vortex, parabolic_sar reversal, squeeze fire)이 실제로 "돌파 캔들에서만 통과"인지 테스트로 확인 — 레벨처럼 동작하는 놈이 있으면 함께 수정
+  - 공통 규칙: 기존 enum 값·기본값 불변(하위호환), 스키마 minor 버전 bump, prev 값 None(데이터 부족) 시 크로스 불통과, 플러그인별 단위테스트(돌파 통과/유지 침묵/부족 데이터)
+  - 예상 규모: Phase 1이 플러그인당 ~30분 (계산 함수는 기존 것 재사용, 조건 평가부와 스키마만 수정)
 - [ ] **KIS 확장 (MVP 이후 보류분)** — hashkey 헤더, tr_cont 페이지네이션, KisModifyOrderNode(정정), H0STASP0 실시간 호가, 주문가능조회 노드화, LS식 token-provider 모드
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
