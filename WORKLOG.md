@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-12 — 시그널 알림 중복 방지: RSI 크로스 트리거 + Throttle 상한 확대 (feature/signal-cross-trigger)
+
+**작업자**: Claude (jwko76 요청 — "텔레그램 포착 시그널이 너무 많아")
+
+### 배경
+조건 플러그인이 레벨 트리거(조건 유지 중 매 평가마다 시그널)뿐이고 ThrottleNode
+상한이 300초라, 스케줄 폴링 + 텔레그램 조합에서 같은 알림이 반복 발생.
+
+### 내용
+- **RSI v3.1.0 크로스 트리거** (community v1.14.0): `direction`에 `cross_below`/`cross_above` 추가
+  - 직전 캔들 RSI와 비교해 임계값 돌파 순간에만 1회 통과, `symbol_results.prev_rsi` 추가
+  - time_series signal 마킹도 돌파 캔들 1개에만, 데이터 부족 시 크로스 불통과
+  - `test_rsi_plugin.py` 신규 10건 (레벨 vs 크로스 대비 검증)
+- **ThrottleNode v1.1.0** (core): `interval_sec` 상한 300 → 86,400초(24h)
+  - pydantic Field + FieldSchema 양쪽, 기본값 5초 불변 (기존 워크플로우 무영향)
+  - pitfalls에 "긴 Throttle은 새 이벤트도 차단 — 시그널 알림은 크로스 트리거 권장" 명시
+  - `test_throttle_node.py` 신규 4건
+- **00-workflow-guide.md §14.4.1**: 시그널 알림 중복 방지 권장 패턴 문서화
+
+---
+
 ## 2026-07-12 — 빗썸 노드 AI 메타데이터 완비 + 분봉 지원 (feature/bithumb-node-polish)
 
 **작업자**: Claude (jwko76 요청)

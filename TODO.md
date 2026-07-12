@@ -21,6 +21,12 @@
 
 ## 완료됨
 
+- [x] **시그널 알림 중복 방지** (2026-07-12, feature/signal-cross-trigger)
+  - RSI v3.1.0: cross_below/cross_above 크로스 트리거 (community v1.14.0)
+  - ThrottleNode v1.1.0: interval_sec 상한 300 → 86,400초
+  - 00-workflow-guide §14.4.1 권장 패턴 문서화
+  - 후속 후보: 다른 조건 플러그인(Bollinger, MACD 등)에도 크로스 모드 확대
+
 - [x] **빗썸 노드 AI 메타데이터 완비 + 분봉 지원** (2026-07-12, feature/bithumb-node-polish)
   - 노드 6종 _anti_patterns/_examples/_node_guide 보완 — shape 테스트 실패 6건 해소, 스니펫 12개 validate 통과
   - BithumbHistoricalDataNode v1.1.0: interval 필드 (day/week/month/1m~240m), executor 4-way 분기, i18n 누락 키 보강

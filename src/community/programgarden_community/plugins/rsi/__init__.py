@@ -23,8 +23,8 @@ RSI_SCHEMA = PluginSchema(
     id="RSI",
     name="RSI (Relative Strength Index)",
     category=PluginCategory.TECHNICAL,
-    version="3.0.0",
-    description="Identifies overbought or oversold conditions. RSI below 30 suggests a buying opportunity, above 70 suggests a selling opportunity.",
+    version="3.1.0",
+    description="Identifies overbought or oversold conditions. RSI below 30 suggests a buying opportunity, above 70 suggests a selling opportunity. Use cross_below/cross_above to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -47,8 +47,13 @@ RSI_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below",
             "title": "Direction",
-            "description": "below: oversold, above: overbought",
-            "enum": ["below", "above"],
+            "description": (
+                "below: oversold level (fires every evaluation while RSI < threshold), "
+                "above: overbought level, "
+                "cross_below: fires once at the moment RSI crosses under threshold (edge trigger), "
+                "cross_above: fires once at the moment RSI crosses over threshold"
+            ),
+            "enum": ["below", "above", "cross_below", "cross_above"],
         },
     },
     required_data=["data"],
@@ -66,7 +71,7 @@ RSI_SCHEMA = PluginSchema(
             "description": "주가가 과매도(너무 많이 팔림) 또는 과매수(너무 많이 삼) 상태인지 판단합니다. RSI가 30 이하면 싸게 살 수 있는 기회, 70 이상이면 비싸게 팔 수 있는 기회를 나타냅니다.",
             "fields.period": "RSI 계산에 사용할 기간",
             "fields.threshold": "과매도/과매수 판단 기준값",
-            "fields.direction": "방향 (below: 과매도, above: 과매수)",
+            "fields.direction": "방향 (below: 과매도 레벨 — 유지 중 매 평가마다 발생, above: 과매수 레벨, cross_below: 하향 돌파 순간 1회 발생, cross_above: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -267,8 +272,9 @@ async def rsi_condition(
                     pass
         
         rsi_value = None
+        prev_rsi_value = None
         current_price = prices[-1] if prices else None
-        
+
         if len(prices) < period + 1:
             # 데이터 부족 - 시뮬레이션
             import random
@@ -282,6 +288,7 @@ async def rsi_condition(
             # RSI 계산
             rsi_value = calculate_rsi(prices, period)
             rsi_series = calculate_rsi_series(prices, period)
+            prev_rsi_value = rsi_series[-2] if len(rsi_series) >= 2 else None
             
             # time_series 생성 (원본 데이터 + RSI 값 + signal/side)
             rsi_start_idx = period
@@ -290,17 +297,26 @@ async def rsi_condition(
                 row_idx = rsi_start_idx + i
                 if row_idx < len(rows_sorted):
                     original_row = rows_sorted[row_idx]
-                    
+
                     # signal, side 결정
                     signal = None
                     side = "long"
                     if rsi_val is not None:
+                        prev_val = rsi_series[i - 1] if i > 0 else None
                         if direction == "below" and rsi_val < threshold:
                             signal = "buy"
                             side = "long"
                         elif direction == "above" and rsi_val > threshold:
                             signal = "sell"
                             side = "long"  # 해외주식 기본, 해외선물은 executor에서 allow_short 처리
+                        elif (direction == "cross_below" and prev_val is not None
+                              and prev_val >= threshold and rsi_val < threshold):
+                            signal = "buy"
+                            side = "long"
+                        elif (direction == "cross_above" and prev_val is not None
+                              and prev_val <= threshold and rsi_val > threshold):
+                            signal = "sell"
+                            side = "long"
                     
                     # 원본 필드 + rsi + signal/side 추가
                     new_row = {
@@ -327,16 +343,32 @@ async def rsi_condition(
             "symbol": symbol,
             "exchange": exchange,
             "rsi": rsi_value,
+            "prev_rsi": prev_rsi_value,
             "current_price": current_price,
         })
-        
+
         # 조건 평가
         if rsi_value is not None:
             if direction == "below":
                 passed_condition = rsi_value < threshold
-            else:  # above
+            elif direction == "above":
                 passed_condition = rsi_value > threshold
-            
+            elif direction == "cross_below":
+                # 직전 캔들은 임계값 위(같음 포함), 현재는 아래 — 하향 돌파 순간만 통과
+                passed_condition = (
+                    prev_rsi_value is not None
+                    and prev_rsi_value >= threshold
+                    and rsi_value < threshold
+                )
+            elif direction == "cross_above":
+                passed_condition = (
+                    prev_rsi_value is not None
+                    and prev_rsi_value <= threshold
+                    and rsi_value > threshold
+                )
+            else:
+                passed_condition = False
+
             if passed_condition:
                 passed.append(sym_dict)
             else:
@@ -355,7 +387,12 @@ async def rsi_condition(
             "period": period,
             "threshold": threshold,
             "direction": direction,
-            "comparison": f"RSI {'<' if direction == 'below' else '>'} {threshold}",
+            "comparison": {
+                "below": f"RSI < {threshold}",
+                "above": f"RSI > {threshold}",
+                "cross_below": f"RSI crosses under {threshold} (prev >= {threshold} and now < {threshold})",
+                "cross_above": f"RSI crosses over {threshold} (prev <= {threshold} and now > {threshold})",
+            }.get(direction, f"RSI ? {threshold}"),
         },
     }
 

@@ -542,7 +542,7 @@
   "fields.TelegramNode.chat_id": "Chat ID to receive messages. Works with private chats, groups, and channels.",
   "fields.TelegramNode.credential_id": "Telegram credential ID. Select credential containing bot_token and chat_id.",
   "fields.TelegramNode.message": "Message content to send. Use {{ }} expressions for dynamic values.",
-  "fields.ThrottleNode.interval_sec": "Minimum execution interval (seconds). Data within this time is processed according to mode.",
+  "fields.ThrottleNode.interval_sec": "Minimum execution interval (seconds). Data within this time is processed according to mode. Up to 86,400s (24h) — useful for notification dedup.",
   "fields.ThrottleNode.mode": "Select mode. skip: ignore data during cooldown, latest: keep only newest data and execute after cooldown",
   "fields.ThrottleNode.pass_first": "Whether to pass the first data immediately",
   "fields.TradingHoursFilterNode.days": "Active days",

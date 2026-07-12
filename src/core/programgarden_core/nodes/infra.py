@@ -196,8 +196,8 @@ class ThrottleNode(BaseNode):
     interval_sec: float = Field(
         default=5.0,
         ge=0.1,
-        le=300.0,
-        description="Minimum execution interval in seconds"
+        le=86400.0,
+        description="Minimum execution interval in seconds (up to 24h for notification dedup)"
     )
     pass_first: bool = Field(
         default=True,
@@ -313,12 +313,13 @@ class ThrottleNode(BaseNode):
         "pitfalls": [
             "AIAgentNode requires ThrottleNode (or equivalent cooldown_sec) when connected to a realtime source — the executor rejects direct realtime→agent wiring",
             "pass_first=False combined with a long interval_sec delays the first emission by that interval, which can look like the workflow is frozen on startup",
+            "Long intervals suppress ALL data during cooldown, including new events — for signal alerts prefer an edge trigger (e.g. RSI direction=cross_below) and use ThrottleNode only as a safety net",
         ],
     }
 
-    _version: ClassVar[str] = "1.0.0"
-    _updated_at: ClassVar[str] = "2026-05-19"
-    _change_note: ClassVar[Optional[str]] = None
+    _version: ClassVar[str] = "1.1.0"
+    _updated_at: ClassVar[str] = "2026-07-12"
+    _change_note: ClassVar[Optional[str]] = "interval_sec 상한 300초 → 86,400초(24h) 확대 — 알림 중복 억제 사용례 지원"
 
     @classmethod
     def get_field_schema(cls) -> Dict[str, "FieldSchema"]:
@@ -345,7 +346,7 @@ class ThrottleNode(BaseNode):
                 description="i18n:fields.ThrottleNode.interval_sec",
                 default=5.0,
                 min_value=0.1,
-                max_value=300.0,
+                max_value=86400.0,
                 expression_mode=ExpressionMode.FIXED_ONLY,
                 category=FieldCategory.PARAMETERS,
                 placeholder="5.0",

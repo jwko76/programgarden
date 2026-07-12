@@ -1,3 +1,14 @@
+## [1.14.0] - 2026-07-12
+### Added
+- **RSI v3.1.0 — 크로스(edge) 트리거 `cross_below` / `cross_above`**
+  (`plugins/rsi/__init__.py`) — `direction` enum에 크로스 모드 2종 추가:
+  직전 캔들 RSI와 비교해 임계값을 **돌파하는 평가 시점에만 1회** 통과.
+  레벨 모드(below/above)는 과매도/과매수 유지 중 매 평가마다 통과해
+  스케줄 폴링 + 텔레그램 조합에서 알림이 반복되는 문제가 있었음 — 시그널
+  알림 용도로는 크로스 모드 권장. `symbol_results`에 `prev_rsi` 필드 추가,
+  time_series signal 마킹도 돌파 캔들 1개에만 적용. 데이터 부족 시
+  (prev RSI 미확보) 크로스는 통과하지 않음. 단위 테스트 10건 신규.
+
 ## [1.13.9] - 2026-06-20
 ### Added
 - **TrailingStop v2.1.0 — `trail_percent` 고정 % 모드 + HWM 자가 갱신**
