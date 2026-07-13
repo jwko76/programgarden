@@ -20,8 +20,8 @@ MEAN_REVERSION_SCHEMA = PluginSchema(
     id="MeanReversion",
     name="Mean Reversion",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Identifies overbought/oversold conditions based on deviation from moving average. When price deviates significantly from MA, it tends to revert to the mean. Buy when oversold (price below MA by threshold), sell when overbought (price above MA by threshold).",
+    version="1.1.0",
+    description="Identifies overbought/oversold conditions based on deviation from moving average. When price deviates significantly from MA, it tends to revert to the mean. Buy when oversold (price below MA by threshold), sell when overbought (price above MA by threshold). Use cross_oversold/cross_overbought to fire only at the moment price crosses the band (edge trigger) instead of on every evaluation while price stays outside it.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "ma_period": {
@@ -44,8 +44,13 @@ MEAN_REVERSION_SCHEMA = PluginSchema(
             "type": "string",
             "default": "oversold",
             "title": "Direction",
-            "description": "oversold: buy when price below MA-threshold, overbought: sell when price above MA+threshold",
-            "enum": ["oversold", "overbought"],
+            "description": (
+                "oversold: buy when price below MA-threshold (fires every evaluation while held), "
+                "overbought: sell when price above MA+threshold, "
+                "cross_oversold: fires once at the moment price crosses under the lower band (edge trigger), "
+                "cross_overbought: fires once at the moment price crosses over the upper band"
+            ),
+            "enum": ["oversold", "overbought", "cross_oversold", "cross_overbought"],
         },
     },
     required_data=["data"],
@@ -66,7 +71,7 @@ MEAN_REVERSION_SCHEMA = PluginSchema(
             "description": "이동평균에서 벗어난 정도를 기반으로 과매수/과매도 상태를 판단합니다. 가격이 MA에서 크게 벗어나면 평균으로 회귀하는 경향이 있습니다. 과매도(가격이 MA 아래)일 때 매수, 과매수(가격이 MA 위)일 때 매도합니다.",
             "fields.ma_period": "이동평균 계산 기간",
             "fields.deviation": "표준편차 배수 (신호 기준)",
-            "fields.direction": "방향 (oversold: 과매도 매수, overbought: 과매수 매도)",
+            "fields.direction": "방향 (oversold: 과매도 레벨 — 유지 중 매 평가마다 발생, overbought: 과매수 레벨, cross_oversold: 하향 돌파 순간 1회 발생, cross_overbought: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -265,6 +270,8 @@ async def mean_reversion_condition(
 
         current_mr = mr_series[-1]
         current_close = closes[-1]
+        prev_mr = mr_series[-2] if len(mr_series) >= 2 else None
+        prev_close = closes[-2] if len(closes) >= 2 else None
 
         # time_series 생성
         start_idx = ma_period - 1
@@ -317,14 +324,27 @@ async def mean_reversion_condition(
             "upper": current_mr["upper"],
             "lower": current_mr["lower"],
             "current_price": current_close,
+            "prev_price": prev_close,
             "deviation_pct": current_mr["deviation_pct"],
         })
 
         # 조건 평가
         if direction == "oversold":
             passed_condition = current_close < current_mr["lower"]
-        else:  # overbought
+        elif direction == "overbought":
             passed_condition = current_close > current_mr["upper"]
+        elif direction == "cross_oversold":
+            passed_condition = (
+                prev_mr is not None and prev_close is not None
+                and prev_close >= prev_mr["lower"] and current_close < current_mr["lower"]
+            )
+        elif direction == "cross_overbought":
+            passed_condition = (
+                prev_mr is not None and prev_close is not None
+                and prev_close <= prev_mr["upper"] and current_close > current_mr["upper"]
+            )
+        else:
+            passed_condition = False
 
         if passed_condition:
             passed.append(sym_dict)

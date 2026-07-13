@@ -1,3 +1,29 @@
+## [1.15.0] - 2026-07-13
+### Fixed
+- **MACD v3.1.0 / MovingAverageCross v3.1.0 — `bullish_cross`/`golden` 등 기존 크로스
+  enum이 실제로는 레벨 체크였던 버그 수정** (`plugins/macd/__init__.py`,
+  `plugins/ma_cross/__init__.py`) — `time_series`의 signal 마킹은 돌파(prev/curr 비교)
+  기준으로 올바르게 구현돼 있었으나, 실제 통과 여부(`passed_symbols`/`result`)는
+  `histogram > 0`/`is_bullish` 같은 **현재 상태만 보는 레벨 체크**였음 — 양수/불리시
+  구간 내내 반복 통과해 알림 중복을 유발. 이번에 돌파 순간에만 통과하도록 수정
+  (기존 enum 값 이름은 불변, 동작만 이름에 맞게 고침). `symbol_results`에
+  `prev_histogram`(MACD)/`prev_short_ma`,`prev_long_ma`(MA Cross) 필드 추가.
+  단위 테스트 각 4건 신규.
+- **WilliamsR — `overbought_threshold` 공식 버그 수정** (`plugins/williams_r/__init__.py`)
+  — `threshold + 100`(기본 -80 → +20, %R 범위 -100~0을 벗어나 도달 불가능)를
+  `-100 - threshold`(→ -20)로 수정. 기존 `direction="overbought"`/`"above"`가
+  기본 설정에서 사실상 영원히 통과하지 못하던 버그.
+### Added
+- **오실레이터 7종 — 크로스(edge) 트리거 추가**
+  (`williams_r` v1.1.0, `cci` v1.1.0, `mfi` v1.1.0, `connors_rsi` v1.1.0,
+  `ultimate_oscillator` v1.1.0, `z_score` v1.1.0, `mean_reversion` v1.1.0) —
+  RSI v3.1.0과 동일 패턴: `direction` enum에 `cross_oversold`/`cross_overbought`
+  (또는 `cross_below`/`cross_above`) 2종 추가, 직전 평가값과 비교해 임계값을
+  **돌파하는 순간에만 1회** 통과. `symbol_results`에 `prev_*` 필드 추가.
+  기존 enum 값·기본값 불변(하위호환). 플러그인별 단위 테스트 4건씩 신규.
+  Stochastic은 기존 `oversold`/`overbought`가 이미 %K/%D 교차 기준 엣지
+  트리거였음을 확인 — 코드 변경 없이 회귀 테스트만 추가.
+
 ## [1.14.0] - 2026-07-12
 ### Added
 - **RSI v3.1.0 — 크로스(edge) 트리거 `cross_below` / `cross_above`**

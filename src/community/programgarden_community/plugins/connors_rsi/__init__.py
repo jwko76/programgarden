@@ -23,8 +23,8 @@ CONNORS_RSI_SCHEMA = PluginSchema(
     id="ConnorsRSI",
     name="ConnorsRSI",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Composite RSI combining classic RSI, Streak RSI (consecutive up/down days RSI), and Percentile Rank. Identifies extreme short-term overbought/oversold conditions. Based on Connors & Alvarez (2008).",
+    version="1.1.0",
+    description="Composite RSI combining classic RSI, Streak RSI (consecutive up/down days RSI), and Percentile Rank. Identifies extreme short-term overbought/oversold conditions. Based on Connors & Alvarez (2008). Use cross_below/cross_above to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK],
     fields_schema={
         "rsi_period": {
@@ -63,8 +63,13 @@ CONNORS_RSI_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below",
             "title": "Direction",
-            "description": "below: buy when CRSI < threshold (oversold), above: sell when CRSI > (100-threshold)",
-            "enum": ["below", "above"],
+            "description": (
+                "below: buy when CRSI < threshold (oversold, fires every evaluation while held), "
+                "above: sell when CRSI > (100-threshold), "
+                "cross_below: fires once at the moment CRSI crosses under threshold (edge trigger), "
+                "cross_above: fires once at the moment CRSI crosses over (100-threshold)"
+            ),
+            "enum": ["below", "above", "cross_below", "cross_above"],
         },
         "exit_threshold": {
             "type": "float",
@@ -95,7 +100,7 @@ CONNORS_RSI_SCHEMA = PluginSchema(
             "fields.streak_period": "연속일수 RSI 기간",
             "fields.pct_rank_period": "백분위 순위 기간",
             "fields.threshold": "진입 임계값",
-            "fields.direction": "방향 (below: 과매도 매수, above: 과매수 매도)",
+            "fields.direction": "방향 (below: 과매도 레벨 — 유지 중 매 평가마다 발생, above: 과매수 레벨, cross_below: 하향 돌파 순간 1회 발생, cross_above: 상향 돌파 순간 1회 발생)",
             "fields.exit_threshold": "청산 임계값",
         },
     },
@@ -358,6 +363,8 @@ async def connors_rsi_condition(
             continue
 
         crsi_result = calculate_connors_rsi(closes, rsi_period, streak_period, pct_rank_period)
+        prev_crsi_result = calculate_connors_rsi(closes[:-1], rsi_period, streak_period, pct_rank_period)
+        prev_crsi = prev_crsi_result["connors_rsi"] if prev_crsi_result else None
 
         if crsi_result is None:
             failed.append(sym_dict)
@@ -391,6 +398,7 @@ async def connors_rsi_condition(
         symbol_results.append({
             "symbol": symbol, "exchange": exchange,
             "connors_rsi": crsi_result["connors_rsi"],
+            "prev_connors_rsi": prev_crsi,
             "rsi_component": crsi_result["rsi_component"],
             "streak_rsi_component": crsi_result["streak_rsi_component"],
             "pct_rank_component": crsi_result["pct_rank_component"],
@@ -400,10 +408,17 @@ async def connors_rsi_condition(
 
         # 조건 평가
         crsi = crsi_result["connors_rsi"]
+        overbought_level = 100.0 - threshold
         if direction == "below":
             passed_condition = crsi < threshold
-        else:  # above
-            passed_condition = crsi > (100.0 - threshold)
+        elif direction == "above":
+            passed_condition = crsi > overbought_level
+        elif direction == "cross_below":
+            passed_condition = prev_crsi is not None and prev_crsi >= threshold and crsi < threshold
+        elif direction == "cross_above":
+            passed_condition = prev_crsi is not None and prev_crsi <= overbought_level and crsi > overbought_level
+        else:
+            passed_condition = False
 
         (passed if passed_condition else failed).append(sym_dict)
 

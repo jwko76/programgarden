@@ -2,7 +2,7 @@
 
 > 대상: 이 프레임워크로 조건 감시 + 텔레그램 알림을 운용하는 프로젝트
 > (예: monitorlsstock). "같은 시그널 알림이 계속 온다" 문제의 해결 절차.
-> 작성: 2026-07-12, feature/signal-cross-trigger
+> 작성: 2026-07-12, 갱신: 2026-07-13, feature/signal-cross-trigger
 
 ---
 
@@ -23,7 +23,7 @@ RSI가 30 아래에 3시간 머묾 × 5분 주기 ScheduleNode 폴링
 
 | 패키지 | 최소 버전 | 변경 내용 |
 |--------|----------|----------|
-| programgarden-community | **1.14.0** | RSI v3.1.0 — `cross_below`/`cross_above` 추가 |
+| programgarden-community | **1.15.0** | RSI v3.1.0 + 오실레이터 7종(§7) 크로스 트리거, MACD/MA Cross 크로스 버그 수정 |
 | programgarden-core | **1.17.0** | ThrottleNode v1.1.0 — `interval_sec` 상한 300 → 86,400초 |
 
 업데이트 (editable 설치 기준):
@@ -113,9 +113,32 @@ job = pg.run(workflow, context={"dry_run": True}, wait=True, timeout=60)
 - [ ] 회복(≥30) 후 재돌파 시 알림 다시 수신
 - [ ] 매매용 ConditionNode는 레벨 트리거 그대로인지 확인
 
-## 7. 다른 지표 크로스 모드 현황
+## 7. 다른 지표 크로스 모드 현황 (2026-07-13 기준)
 
-2026-07-12 현재 크로스 트리거는 **RSI만** 지원한다.
-Stochastic/CCI/MFI 등 다른 레벨형 지표의 크로스 모드는 프레임워크 TODO.md의
-"조건 플러그인 크로스 트리거 확대" 계획 참조. MACD·MA Cross·Aroon 등은
-원래 크로스 이벤트형이라 그대로 사용하면 된다.
+**레벨형 지표 — 크로스 모드 지원 (v1.15.0)**
+
+| 플러그인 | 크로스 enum 값 |
+|---------|----------------|
+| RSI | `cross_below` / `cross_above` |
+| WilliamsR | `cross_oversold` / `cross_overbought` |
+| CCI | `cross_oversold` / `cross_overbought` |
+| MFI | `cross_below` / `cross_above` |
+| ConnorsRSI | `cross_below` / `cross_above` |
+| UltimateOscillator | `cross_below` / `cross_above` |
+| ZScore | `cross_below` / `cross_above` |
+| MeanReversion | `cross_oversold` / `cross_overbought` |
+
+**이미 크로스 이벤트형이라 그대로 쓰면 되는 지표** — Stochastic(`oversold`/`overbought`는
+%K/%D 교차 기준이라 이미 엣지 트리거), MACD(`bullish_cross`/`bearish_cross`, v3.1.0에서
+버그 수정 — 과거엔 레벨 체크였음), MovingAverageCross(`golden`/`dead`, 마찬가지로
+v3.1.0에서 버그 수정), Aroon(`cross_up`/`cross_down`), CoppockCurve(`zero_cross`),
+TRIX(`bullish_cross`/`bearish_cross`), VortexIndicator(`bullish_cross`/`bearish_cross`),
+ParabolicSAR(`bullish_reversal`/`bearish_reversal`), SqueezeMomentum(`squeeze_fire_long`/
+`squeeze_fire_short`).
+
+**아직 레벨형만 있는 지표** — Bollinger Bands, VWAP, CMF, RelativeStrength 등
+(TODO.md "조건 플러그인 크로스 트리거 확대 — Phase 2" 참조).
+
+> ⚠️ MACD `bullish_cross`/`bearish_cross`와 MovingAverageCross `golden`/`dead`를
+> v1.14.0 이하에서 이미 쓰고 있었다면, v1.15.0으로 올리면 **알림 빈도가 줄어든다**
+> (버그 수정으로 돌파 순간에만 통과하도록 바뀜 — 의도된 동작에 가까워진 것).

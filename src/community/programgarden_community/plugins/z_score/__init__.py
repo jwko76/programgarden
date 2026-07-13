@@ -20,8 +20,8 @@ Z_SCORE_SCHEMA = PluginSchema(
     id="ZScore",
     name="Z-Score",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Statistical Z-Score of price relative to its rolling mean and standard deviation. Z-Score normalizes deviation in standard deviation units, enabling cross-symbol comparison. Entry when |Z| exceeds entry_threshold, exit when |Z| falls below exit_threshold.",
+    version="1.1.0",
+    description="Statistical Z-Score of price relative to its rolling mean and standard deviation. Z-Score normalizes deviation in standard deviation units, enabling cross-symbol comparison. Entry when |Z| exceeds entry_threshold, exit when |Z| falls below exit_threshold. Use cross_below/cross_above to fire only at the moment the entry threshold is crossed (edge trigger) instead of on every evaluation while |Z| stays extreme.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {
@@ -52,8 +52,13 @@ Z_SCORE_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below",
             "title": "Direction",
-            "description": "below: buy when Z < -entry (oversold), above: sell when Z > +entry (overbought)",
-            "enum": ["below", "above"],
+            "description": (
+                "below: buy when Z < -entry (oversold, fires every evaluation while held), "
+                "above: sell when Z > +entry (overbought), "
+                "cross_below: fires once at the moment Z crosses under -entry (edge trigger), "
+                "cross_above: fires once at the moment Z crosses over +entry"
+            ),
+            "enum": ["below", "above", "cross_below", "cross_above"],
         },
     },
     required_data=["data"],
@@ -73,7 +78,7 @@ Z_SCORE_SCHEMA = PluginSchema(
             "fields.lookback": "롤링 윈도우 기간",
             "fields.entry_threshold": "진입 임계값 (시그마)",
             "fields.exit_threshold": "청산 임계값 (시그마)",
-            "fields.direction": "방향 (below: Z < -entry 시 매수, above: Z > +entry 시 매도)",
+            "fields.direction": "방향 (below: 과매도 레벨 — 유지 중 매 평가마다 발생, above: 과매수 레벨, cross_below: 하향 돌파 순간 1회 발생, cross_above: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -241,6 +246,7 @@ async def z_score_condition(
         # Z-Score 시계열 계산
         z_series = calculate_z_score_series(closes, lookback)
         current_z = z_series[-1]["z_score"] if z_series else None
+        prev_z = z_series[-2]["z_score"] if len(z_series) >= 2 else None
         current_price = closes[-1]
 
         # time_series 생성
@@ -284,6 +290,7 @@ async def z_score_condition(
         symbol_results.append({
             "symbol": symbol, "exchange": exchange,
             "z_score": current_z,
+            "prev_z_score": prev_z,
             "mean": z_series[-1]["mean"] if z_series else None,
             "std": z_series[-1]["std"] if z_series else None,
             "current_price": current_price,
@@ -293,8 +300,14 @@ async def z_score_condition(
         if current_z is not None:
             if direction == "below":
                 passed_condition = current_z < -entry_threshold
-            else:
+            elif direction == "above":
                 passed_condition = current_z > entry_threshold
+            elif direction == "cross_below":
+                passed_condition = prev_z is not None and prev_z >= -entry_threshold and current_z < -entry_threshold
+            elif direction == "cross_above":
+                passed_condition = prev_z is not None and prev_z <= entry_threshold and current_z > entry_threshold
+            else:
+                passed_condition = False
 
             (passed if passed_condition else failed).append(sym_dict)
         else:

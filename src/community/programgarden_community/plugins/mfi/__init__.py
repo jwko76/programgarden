@@ -22,8 +22,8 @@ MFI_SCHEMA = PluginSchema(
     id="MFI",
     name="Money Flow Index",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Volume-weighted RSI measuring money flow strength. Uses Typical Price × Volume to identify capital inflow/outflow. Similar to RSI but incorporates volume for higher reliability. Entry when MFI crosses overbought/oversold thresholds.",
+    version="1.1.0",
+    description="Volume-weighted RSI measuring money flow strength. Uses Typical Price × Volume to identify capital inflow/outflow. Similar to RSI but incorporates volume for higher reliability. Use cross_below/cross_above to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -54,8 +54,13 @@ MFI_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below",
             "title": "Direction",
-            "description": "below: buy when MFI < oversold, above: sell when MFI > overbought",
-            "enum": ["below", "above"],
+            "description": (
+                "below: buy when MFI < oversold (fires every evaluation while held), "
+                "above: sell when MFI > overbought, "
+                "cross_below: fires once at the moment MFI crosses under oversold (edge trigger), "
+                "cross_above: fires once at the moment MFI crosses over overbought"
+            ),
+            "enum": ["below", "above", "cross_below", "cross_above"],
         },
     },
     required_data=["data"],
@@ -75,7 +80,7 @@ MFI_SCHEMA = PluginSchema(
             "fields.period": "MFI 기간",
             "fields.overbought": "과매수 기준값",
             "fields.oversold": "과매도 기준값",
-            "fields.direction": "방향 (below: MFI < 과매도 시 매수, above: MFI > 과매수 시 매도)",
+            "fields.direction": "방향 (below: 과매도 레벨 — 유지 중 매 평가마다 발생, above: 과매수 레벨, cross_below: 하향 돌파 순간 1회 발생, cross_above: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -315,9 +320,11 @@ async def mfi_condition(
 
         values.append({"symbol": symbol, "exchange": exchange, "time_series": time_series})
 
+        prev_mfi = mfi_series[-2] if len(mfi_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol, "exchange": exchange,
             "mfi": current_mfi,
+            "prev_mfi": prev_mfi,
             "overbought_level": overbought,
             "oversold_level": oversold,
             "current_price": closes_list[-1],
@@ -326,8 +333,14 @@ async def mfi_condition(
         if current_mfi is not None:
             if direction == "below":
                 passed_condition = current_mfi < oversold
-            else:
+            elif direction == "above":
                 passed_condition = current_mfi > overbought
+            elif direction == "cross_below":
+                passed_condition = prev_mfi is not None and prev_mfi >= oversold and current_mfi < oversold
+            elif direction == "cross_above":
+                passed_condition = prev_mfi is not None and prev_mfi <= overbought and current_mfi > overbought
+            else:
+                passed_condition = False
             (passed if passed_condition else failed).append(sym_dict)
         else:
             failed.append(sym_dict)

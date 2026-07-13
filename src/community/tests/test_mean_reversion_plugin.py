@@ -228,7 +228,7 @@ class TestMeanReversionPlugin:
     def test_schema(self):
         """스키마 검증"""
         assert MEAN_REVERSION_SCHEMA.id == "MeanReversion"
-        assert MEAN_REVERSION_SCHEMA.version == "1.0.0"
+        assert MEAN_REVERSION_SCHEMA.version == "1.1.0"
         assert "ma_period" in MEAN_REVERSION_SCHEMA.fields_schema
         assert "deviation" in MEAN_REVERSION_SCHEMA.fields_schema
         assert "direction" in MEAN_REVERSION_SCHEMA.fields_schema
