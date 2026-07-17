@@ -23,8 +23,8 @@ MACD_SCHEMA = PluginSchema(
     id="MACD",
     name="MACD (Moving Average Convergence Divergence)",
     category=PluginCategory.TECHNICAL,
-    version="3.0.0",
-    description="Finds trend reversal points through crossovers of short and long moving averages. Bullish when MACD crosses above signal line, bearish when crossing below.",
+    version="3.1.0",
+    description="Finds trend reversal points through crossovers of short and long moving averages. bullish_cross/bearish_cross fire once at the moment the histogram flips sign (edge trigger), not while it stays positive/negative.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "fast_period": {
@@ -259,9 +259,11 @@ async def macd_condition(
         macd_series = calculate_macd_series(prices, fast, slow, signal_period)
         
         # 결과 저장
+        prev_histogram = macd_series[-2].get("histogram") if len(macd_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol,
             "exchange": exchange,
+            "prev_histogram": prev_histogram,
             **macd_data,
         })
         
@@ -311,11 +313,16 @@ async def macd_condition(
             "time_series": time_series,
         })
         
-        # 조건 판정
-        if signal_type == "bullish_cross":
-            passed_condition = macd_data["histogram"] > 0 and macd_data["macd"] > 0
+        # 조건 판정 — 히스토그램 부호 전환(돌파) 순간에만 통과 (알림 중복 방지)
+        if len(macd_series) >= 2:
+            curr_hist = macd_series[-1].get("histogram", 0)
+            prev_hist = macd_series[-2].get("histogram", 0)
+            if signal_type == "bullish_cross":
+                passed_condition = prev_hist < 0 and curr_hist >= 0
+            else:
+                passed_condition = prev_hist > 0 and curr_hist <= 0
         else:
-            passed_condition = macd_data["histogram"] < 0 and macd_data["macd"] < 0
+            passed_condition = False
         
         if passed_condition:
             passed.append(sym_dict)

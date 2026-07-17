@@ -55,7 +55,7 @@ class InquirePriceOutBlock(BaseModel):
     pbr: Optional[str] = Field(default=None, title="PBR")
     eps: Optional[str] = Field(default=None, title="EPS")
     bps: Optional[str] = Field(default=None, title="BPS")
-    hts_kor_isnm: Optional[str] = Field(default=None, title="HTS 한글 종목명")
+    bstp_kor_isnm: Optional[str] = Field(default=None, title="업종 한글 종목명")
     rprs_mrkt_kor_name: Optional[str] = Field(default=None, title="대표 시장 한글명")
 
 

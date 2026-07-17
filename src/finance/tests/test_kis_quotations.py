@@ -31,7 +31,7 @@ class TestInquirePriceMock:
                     "stck_prpr": "71900", "prdy_vrss": "-100", "prdy_ctrt": "-0.14",
                     "stck_oprc": "72000", "stck_hgpr": "72100", "stck_lwpr": "71500",
                     "acml_vol": "9999999", "per": "12.34", "pbr": "1.23",
-                    "hts_kor_isnm": "삼성전자",
+                    "bstp_kor_isnm": "전기.전자",
                 },
             },
         )
@@ -42,7 +42,7 @@ class TestInquirePriceMock:
         assert resp.error_msg is None
         assert resp.rt_cd == "0"
         assert resp.block.stck_prpr == "71900"
-        assert resp.block.hts_kor_isnm == "삼성전자"
+        assert resp.block.bstp_kor_isnm == "전기.전자"
 
         # 헤더 검증
         req = requests_mock.last_request

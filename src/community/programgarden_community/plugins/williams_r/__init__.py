@@ -17,8 +17,8 @@ WILLIAMS_R_SCHEMA = PluginSchema(
     id="WilliamsR",
     name="Williams %R",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Williams %R oscillator with inverted scale (-100 to 0). Below -80 indicates oversold, above -20 indicates overbought. Similar to Stochastic but inverted.",
+    version="1.1.0",
+    description="Williams %R oscillator with inverted scale (-100 to 0). Below -80 indicates oversold, above -20 indicates overbought. Similar to Stochastic but inverted. Use cross_oversold/cross_overbought to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -41,8 +41,13 @@ WILLIAMS_R_SCHEMA = PluginSchema(
             "type": "string",
             "default": "oversold",
             "title": "Direction",
-            "description": "oversold: buy signal, overbought: sell signal",
-            "enum": ["oversold", "overbought"],
+            "description": (
+                "oversold: buy signal (fires every evaluation while %R <= threshold), "
+                "overbought: sell signal, "
+                "cross_oversold: fires once at the moment %R crosses under threshold (edge trigger), "
+                "cross_overbought: fires once at the moment %R crosses over the overbought level"
+            ),
+            "enum": ["oversold", "overbought", "cross_oversold", "cross_overbought"],
         },
     },
     required_data=["data"],
@@ -58,7 +63,7 @@ WILLIAMS_R_SCHEMA = PluginSchema(
             "description": "역전된 스케일(-100~0)의 오실레이터입니다. -80 이하 과매도(매수 신호), -20 이상 과매수(매도 신호)입니다.",
             "fields.period": "계산 기간",
             "fields.threshold": "과매도 기준값 (과매수 = 기준값 + 100)",
-            "fields.direction": "방향 (oversold: 매수, overbought: 매도)",
+            "fields.direction": "방향 (oversold: 과매도 레벨 — 유지 중 매 평가마다 발생, overbought: 과매수 레벨, cross_oversold: 하향 돌파 순간 1회 발생, cross_overbought: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -126,7 +131,7 @@ async def williams_r_condition(
     threshold = fields.get("threshold", -80)
     direction = fields.get("direction", "oversold")
 
-    overbought_threshold = threshold + 100  # -80 → -20
+    overbought_threshold = -100 - threshold  # -80 → -20 (%R 범위는 -100~0)
 
     if not data or not isinstance(data, list):
         return {
@@ -241,16 +246,24 @@ async def williams_r_condition(
         values.append({"symbol": symbol, "exchange": exchange, "time_series": time_series})
 
         current_wr = wr_series[-1]["williams_r"]
+        prev_wr = wr_series[-2]["williams_r"] if len(wr_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol,
             "exchange": exchange,
             "williams_r": current_wr,
+            "prev_williams_r": prev_wr,
         })
 
         if direction == "oversold":
             passed_condition = current_wr <= threshold
-        else:
+        elif direction == "overbought":
             passed_condition = current_wr >= overbought_threshold
+        elif direction == "cross_oversold":
+            passed_condition = prev_wr is not None and prev_wr > threshold and current_wr <= threshold
+        elif direction == "cross_overbought":
+            passed_condition = prev_wr is not None and prev_wr < overbought_threshold and current_wr >= overbought_threshold
+        else:
+            passed_condition = False
 
         if passed_condition:
             passed.append(sym_dict)

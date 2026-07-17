@@ -1,15 +1,26 @@
 # TODO
 
-## 진행 중
+## 보류 중
 
-- [ ] **feature/kis-broker 브랜치** — 한국투자증권(KIS) 연동 구현 완료, main 머지 대기
+- [ ] **KIS 실전 주문 라이브 검증 — APBK0919 오류로 블로킹 (2026-07-13 시도)**
+  - `run_order_lifecycle_live.py` 실행 → 토큰 발급/현재가 조회 정상, 매수 주문에서
+    `장운영일자가 주문일과 상이합니다 (APBK0919)` 거부 (주문 미접수, 취소 단계 미실행 — 계좌에 걸린 주문 없음)
+  - 코드(`tr_helpers.py`/`order/__init__.py`) 헤더·계좌번호 채움 로직 정상 확인, 같은 계좌로 잔고·매수가능 조회는 7/11 기성공
+  - 사용자 확인: 이 계좌로 HTS/MTS 수동 매매 이력 있음 → "API 최초 이용 라우팅 미활성화" 가설 배제
+  - **다음 단계(사용자 확인 필요)**: KIS 홈페이지/앱 [트레이딩]→[Open API]→[KIS Developers]에서
+    "오픈API 서비스 신청"(약관동의+계좌연결) 완료 여부 확인 — app key 발급과 별개 절차일 수 있음
+  - 재시도 시: `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py` (WSL)
+  - 실시간 체결가(`run_real_ccnl.py`, H0STCNT0)는 주문 이슈와 무관하니 별도로 먼저 검증 가능
+  - 완료 기준: REST 7종 + 실시간 전부 라이브 검증 → CLAUDE.md/WORKLOG 갱신
 
 ## 다음 작업 후보
 
-- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제)
+- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제). 사용자 app key 발급 대기 중
+- [ ] **조건 플러그인 크로스 트리거 확대 — Phase 2/3** (Phase 0/1은 완료, 아래 "완료됨" 참조)
+  - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
+  - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
+  - 공통 규칙: 기존 enum 값·기본값 불변(하위호환), 스키마 minor 버전 bump, prev 값 None(데이터 부족) 시 크로스 불통과, 플러그인별 단위테스트(돌파 통과/유지 침묵/부족 데이터)
 - [ ] **KIS 확장 (MVP 이후 보류분)** — hashkey 헤더, tr_cont 페이지네이션, KisModifyOrderNode(정정), H0STASP0 실시간 호가, 주문가능조회 노드화, LS식 token-provider 모드
-- [ ] **Bithumb 노드 _examples/_node_guide 보완** — test_node_schema_ai_fields shape 테스트 기존 실패 6건 해소 (KIS 노드는 완비됨)
-- [ ] **BithumbHistoricalDataNode 분봉 지원** — 현재 일봉만, `/v1/candles/minutes/{unit}` 래핑
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
 - [ ] **미래에셋증권** — 공개 REST 오픈API 미확인으로 보류 (개발자센터 공개 시 재검토)
@@ -17,6 +28,27 @@
 ---
 
 ## 완료됨
+
+- [x] **조건 플러그인 크로스 트리거 확대 — Phase 0/1** (2026-07-13, feature/signal-cross-trigger, community v1.15.0)
+  - Phase 0 검증: aroon/coppock/trix/vortex/parabolic_sar/squeeze_momentum 정상.
+    **MACD·MA Cross는 버그** 발견(이름은 cross인데 실제 통과 판정은 레벨 체크) —
+    기존 enum 값 그대로 진짜 크로스로 수정 (v3.1.0)
+  - Phase 1: williams_r/cci/mfi/connors_rsi/ultimate_oscillator/z_score/mean_reversion
+    7종에 cross_oversold·cross_overbought(또는 cross_below·cross_above) 추가 (각 v1.1.0).
+    Stochastic은 기존 oversold/overbought가 이미 %K/%D 교차 기반이라 변경 불요(회귀 테스트만 추가)
+  - 부수 수정: WilliamsR `overbought_threshold` 공식 버그(-80+100=20 → 도달 불가능을 -100-threshold=-20으로)
+  - docs/signal_dedup_migration_guide.md §7 지표별 크로스 enum 표 갱신
+  - Phase 2(밴드형)/3(모니터링)은 위 "다음 작업 후보"로 이월
+
+- [x] **시그널 알림 중복 방지** (2026-07-12, feature/signal-cross-trigger)
+  - RSI v3.1.0: cross_below/cross_above 크로스 트리거 (community v1.14.0)
+  - ThrottleNode v1.1.0: interval_sec 상한 300 → 86,400초
+  - 00-workflow-guide §14.4.1 권장 패턴 문서화
+
+- [x] **빗썸 노드 AI 메타데이터 완비 + 분봉 지원** (2026-07-12, feature/bithumb-node-polish)
+  - 노드 6종 _anti_patterns/_examples/_node_guide 보완 — shape 테스트 실패 6건 해소, 스니펫 12개 validate 통과
+  - BithumbHistoricalDataNode v1.1.0: interval 필드 (day/week/month/1m~240m), executor 4-way 분기, i18n 누락 키 보강
+  - 엔진 전체 경로로 5m/day/week/month 공개 API 라이브 검증
 
 - [x] **한국투자증권(KIS) 연동 전체** (2026-07-11, feature/kis-broker) — v1.10.0/v1.16.0/v1.26.0
   - 멀티브로커: resolver 검증 키 (scope, provider) 확장 — LS+KIS 국내주식 공존

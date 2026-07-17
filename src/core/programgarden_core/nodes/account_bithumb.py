@@ -75,6 +75,96 @@ class BithumbAccountNode(BaseNode):
         "세 포트 출력: held_symbols (보유 마켓 목록), balance (KRW 잔고), positions (코인별 잔고)",
         "is_tool_enabled=True — AI Agent가 포트폴리오 상태 조회 도구로 사용 가능",
     ]
+    _anti_patterns: ClassVar[List[Dict[str, str]]] = [
+        {
+            "pattern": "BithumbBrokerNode 없이 BithumbAccountNode 단독 사용",
+            "reason": "GET /v1/accounts 는 Private API — 인증 없이는 호출이 실패합니다.",
+            "alternative": "워크플로우 시작부에 BithumbBrokerNode를 배치하세요.",
+        },
+        {
+            "pattern": "positions 포트에서 KRW 잔고를 찾음",
+            "reason": "positions는 KRW를 제외한 보유 코인 목록입니다. KRW는 별도 포트입니다.",
+            "alternative": "KRW 잔고는 balance 포트(balance.orderable_amount)를 사용하세요.",
+        },
+    ]
+
+    _examples: ClassVar[List[Dict[str, Any]]] = [
+        {
+            "title": "잔고·보유코인 대시보드",
+            "description": "KRW 잔고 요약과 보유 코인 테이블을 함께 표시합니다.",
+            "workflow_snippet": {
+                "id": "bithumb-account-dashboard",
+                "name": "빗썸 잔고 대시보드",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "BithumbBrokerNode", "credential_id": "bithumb_cred"},
+                    {"id": "account", "type": "BithumbAccountNode"},
+                    {"id": "krw", "type": "SummaryDisplayNode", "title": "KRW 잔고",
+                     "data": "{{ nodes.account.balance }}"},
+                    {"id": "coins", "type": "TableDisplayNode", "title": "보유 코인",
+                     "columns": ["market", "currency", "balance", "avg_buy_price"],
+                     "data": "{{ nodes.account.positions }}"},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "account"},
+                    {"from": "account", "to": "krw"},
+                    {"from": "account", "to": "coins"},
+                ],
+                "credentials": [
+                    {"credential_id": "bithumb_cred", "type": "broker_bithumb", "data": [
+                        {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+                        {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"},
+                    ]},
+                ],
+            },
+            "expected_output": "balance 포트가 KRW 요약에, positions 포트가 보유 코인 테이블에 표시됩니다.",
+        },
+        {
+            "title": "잔고 조건 매수",
+            "description": "주문 가능 KRW가 10만원 이상일 때만 BTC를 시장가 매수합니다.",
+            "workflow_snippet": {
+                "id": "bithumb-account-gated-buy",
+                "name": "잔고 조건 매수",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "BithumbBrokerNode", "credential_id": "bithumb_cred"},
+                    {"id": "account", "type": "BithumbAccountNode"},
+                    {"id": "gate", "type": "IfNode",
+                     "condition": "{{ nodes.account.balance.orderable_amount >= 100000 }}"},
+                    {"id": "buy", "type": "BithumbNewOrderNode", "side": "bid", "order_type": "price",
+                     "order": {"market": "KRW-BTC", "price": "100000"}},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "account"},
+                    {"from": "account", "to": "gate"},
+                    {"from": "gate", "to": "buy", "condition": "true"},
+                ],
+                "credentials": [
+                    {"credential_id": "bithumb_cred", "type": "broker_bithumb", "data": [
+                        {"key": "access_key", "value": "", "type": "password", "label": "Access Key"},
+                        {"key": "secret_key", "value": "", "type": "password", "label": "Secret Key"},
+                    ]},
+                ],
+            },
+            "expected_output": "orderable_amount가 100,000 이상이면 100,000 KRW 시장가 매수가 실행됩니다.",
+        },
+    ]
+    _node_guide: ClassVar[Dict[str, Any]] = {
+        "input_handling": "설정 필드가 없습니다 — trigger 입력(선택)만 받으며 브로커 연결은 자동 주입됩니다.",
+        "output_consumption": "balance.orderable_amount로 주문 가능 KRW를, positions[n].balance로 코인 수량을 참조합니다. held_symbols는 보유 마켓 코드 목록입니다.",
+        "common_combinations": [
+            "BithumbAccountNode → SummaryDisplayNode / TableDisplayNode (잔고 대시보드)",
+            "BithumbAccountNode.balance → IfNode → BithumbNewOrderNode (잔고 조건 주문)",
+            "ScheduleNode → BithumbAccountNode (주기적 포트폴리오 스냅샷)",
+        ],
+        "pitfalls": [
+            "KRW는 positions에 포함되지 않음 — balance 포트에서 조회",
+            "avg_buy_price는 KRW 기준 — 수익률 계산 시 현재가(BithumbMarketDataNode)와 조합 필요",
+            "REST 1회 조회 노드 — 연속 모니터링은 ScheduleNode로 주기 실행",
+        ],
+    }
 
     @classmethod
     def is_tool_enabled(cls) -> bool:
@@ -105,7 +195,7 @@ class BithumbAccountNode(BaseNode):
     ]
 
     _version: ClassVar[str] = "1.0.0"
-    _updated_at: ClassVar[str] = "2026-06-19"
+    _updated_at: ClassVar[str] = "2026-07-11"
     _change_note: ClassVar[Optional[str]] = None
 
     @classmethod

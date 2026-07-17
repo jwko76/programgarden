@@ -17,8 +17,8 @@ CCI_SCHEMA = PluginSchema(
     id="CCI",
     name="Commodity Channel Index",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Measures price deviation from its statistical mean using Typical Price. Above +100 indicates overbought, below -100 indicates oversold. Popular for futures trading.",
+    version="1.1.0",
+    description="Measures price deviation from its statistical mean using Typical Price. Above +100 indicates overbought, below -100 indicates oversold. Popular for futures trading. Use cross_oversold/cross_overbought to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -41,8 +41,13 @@ CCI_SCHEMA = PluginSchema(
             "type": "string",
             "default": "oversold",
             "title": "Direction",
-            "description": "oversold: buy signal, overbought: sell signal",
-            "enum": ["oversold", "overbought"],
+            "description": (
+                "oversold: buy signal (fires every evaluation while CCI <= -threshold), "
+                "overbought: sell signal, "
+                "cross_oversold: fires once at the moment CCI crosses under -threshold (edge trigger), "
+                "cross_overbought: fires once at the moment CCI crosses over +threshold"
+            ),
+            "enum": ["oversold", "overbought", "cross_oversold", "cross_overbought"],
         },
     },
     required_data=["data"],
@@ -59,7 +64,7 @@ CCI_SCHEMA = PluginSchema(
             "description": "전형적인 가격(TP)의 이동평균으로부터의 편차를 측정합니다. +100 이상 과매수, -100 이하 과매도입니다. 선물 트레이더의 핵심 지표입니다.",
             "fields.period": "CCI 계산 기간",
             "fields.threshold": "과매수/과매도 기준값",
-            "fields.direction": "방향 (oversold: 매수, overbought: 매도)",
+            "fields.direction": "방향 (oversold: 과매도 레벨 — 유지 중 매 평가마다 발생, overbought: 과매수 레벨, cross_oversold: 하향 돌파 순간 1회 발생, cross_overbought: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -251,17 +256,25 @@ async def cci_condition(
         values.append({"symbol": symbol, "exchange": exchange, "time_series": time_series})
 
         current_cci = cci_series[-1]["cci"]
+        prev_cci = cci_series[-2]["cci"] if len(cci_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol,
             "exchange": exchange,
             "cci": current_cci,
+            "prev_cci": prev_cci,
             "typical_price": cci_series[-1]["typical_price"],
         })
 
         if direction == "oversold":
             passed_condition = current_cci <= -threshold
-        else:
+        elif direction == "overbought":
             passed_condition = current_cci >= threshold
+        elif direction == "cross_oversold":
+            passed_condition = prev_cci is not None and prev_cci > -threshold and current_cci <= -threshold
+        elif direction == "cross_overbought":
+            passed_condition = prev_cci is not None and prev_cci < threshold and current_cci >= threshold
+        else:
+            passed_condition = False
 
         if passed_condition:
             passed.append(sym_dict)

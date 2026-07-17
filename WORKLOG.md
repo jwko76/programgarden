@@ -5,6 +5,118 @@
 
 ---
 
+## 2026-07-13 — 조건 플러그인 크로스 트리거 확대 (Phase 0/1) + MACD·MA Cross·WilliamsR 버그 수정 (feature/signal-cross-trigger)
+
+**작업자**: Claude (jwko76 요청 — TODO.md "조건 플러그인 크로스 트리거 확대" 진행)
+
+### Phase 0 — 기존 크로스형 플러그인 8종 검증
+aroon/coppock_curve/trix/vortex_indicator/parabolic_sar/squeeze_momentum은 정상
+(직전 vs 현재 비교로 돌파 순간에만 통과). **MACD·MovingAverageCross는 버그** 발견:
+`time_series`의 signal 마킹은 돌파 기준으로 맞게 구현했지만, 실제 통과 여부
+(`passed_symbols`/`result`)는 `histogram>0`/`is_bullish` 같은 **레벨 체크**였음 —
+이름은 "cross"인데 양수/불리시 구간 내내 반복 통과해 알림 중복을 그대로 유발하던
+버그. 사용자 확인 후 기존 enum 값(`bullish_cross`/`golden` 등) 그대로 진짜 크로스로
+수정 (MACD v3.1.0, MovingAverageCross v3.1.0). `prev_histogram`/`prev_short_ma`/
+`prev_long_ma` 필드 추가, 신규 테스트 `test_macd_cross_trigger.py`/
+`test_ma_cross_plugin.py` 각 4건.
+
+### Phase 1 — 오실레이터 크로스 트리거 확대
+RSI v3.1.0 패턴을 WilliamsR/CCI/MFI/ConnorsRSI/UltimateOscillator/ZScore/
+MeanReversion 7종에 복제 (모두 v1.1.0) — `direction` enum에 `cross_oversold`/
+`cross_overbought`(또는 `cross_below`/`cross_above`) 추가, `prev_*` 필드,
+플러그인별 단위테스트 4건씩. Stochastic은 조사 결과 기존 `oversold`/`overbought`가
+이미 %K/%D 교차 기준 엣지 트리거라 판명 — 코드 변경 없이 회귀 테스트만 추가
+(`test_stochastic_cross_verification.py`).
+
+부수 발견: **WilliamsR `overbought_threshold` 공식 버그** — `threshold+100`
+(기본 -80 → +20, %R 범위 -100~0을 벗어나 도달 불가능)를 `-100-threshold`(→ -20)로
+수정. 사용자 확인 후 함께 고침.
+
+### 문서/버전
+- community v1.14.0 → **v1.15.0**, CHANGELOG.md 갱신
+- `docs/signal_dedup_migration_guide.md` §2/§7 갱신 — 지표별 크로스 enum 표,
+  MACD/MA Cross 버그 수정으로 인한 알림 빈도 감소 경고 추가
+- 전체 테스트: community 1159 passed (파일 파서 관련 기존 실패 108건은 무관 —
+  openpyxl/pypdf/python-docx venv 미설치, 건드리지 않음)
+
+---
+
+## 2026-07-13 — KIS 실전 주문 라이브 검증 시도 → APBK0919로 블로킹
+
+**작업자**: Claude (jwko76 요청 — TODO.md 예정 작업 진행)
+
+### 내용
+- `run_order_lifecycle_live.py` 실행 (WSL, `KIS_LIVE_ORDER_CONFIRM=YES`): 토큰 발급·현재가 조회(088350, 4,355원/하한가 3,255원) 정상
+- 하한가 지정가 1주 매수 요청에서 KIS 서버가 `rt_cd=1, msg_cd=APBK0919, msg1="장운영일자가 주문일과 상이합니다"`로 거부 — 주문 미접수, 이후 취소 단계 미실행 (계좌에 실제로 걸린 주문 없음)
+- 코드 점검(`tr_helpers.py`의 헤더 구성, `order/__init__.py`의 계좌번호 자동 채움) 상 이상 없음. 같은 계좌로 잔고·매수가능조회는 2026-07-11에 이미 성공한 이력
+- 사용자 확인: 이 계좌로 HTS/MTS 수동 매매 경험 있음 → "API 최초 이용 계좌라 라우팅 미활성화" 가설 배제
+- 웹 검색으로 `APBK0919` 자체 문서는 못 찾음. KIS는 app key 발급과 별개로 홈페이지/앱 [트레이딩]→[Open API]→[KIS Developers]에서 "오픈API 서비스 신청"(약관동의+계좌연결) 절차가 있다는 정보 확인 — 유력 후보로 사용자에게 확인 요청, 결과 대기 중 보류
+- TODO.md "보류 중" 섹션에 재개 조건 기록. 실시간 체결가(`run_real_ccnl.py`)는 주문과 무관하니 별도 진행 가능
+
+---
+
+## 2026-07-12 — 시그널 알림 중복 방지: RSI 크로스 트리거 + Throttle 상한 확대 (feature/signal-cross-trigger)
+
+**작업자**: Claude (jwko76 요청 — "텔레그램 포착 시그널이 너무 많아")
+
+### 배경
+조건 플러그인이 레벨 트리거(조건 유지 중 매 평가마다 시그널)뿐이고 ThrottleNode
+상한이 300초라, 스케줄 폴링 + 텔레그램 조합에서 같은 알림이 반복 발생.
+
+### 내용
+- **RSI v3.1.0 크로스 트리거** (community v1.14.0): `direction`에 `cross_below`/`cross_above` 추가
+  - 직전 캔들 RSI와 비교해 임계값 돌파 순간에만 1회 통과, `symbol_results.prev_rsi` 추가
+  - time_series signal 마킹도 돌파 캔들 1개에만, 데이터 부족 시 크로스 불통과
+  - `test_rsi_plugin.py` 신규 10건 (레벨 vs 크로스 대비 검증)
+- **ThrottleNode v1.1.0** (core): `interval_sec` 상한 300 → 86,400초(24h)
+  - pydantic Field + FieldSchema 양쪽, 기본값 5초 불변 (기존 워크플로우 무영향)
+  - pitfalls에 "긴 Throttle은 새 이벤트도 차단 — 시그널 알림은 크로스 트리거 권장" 명시
+  - `test_throttle_node.py` 신규 4건
+- **00-workflow-guide.md §14.4.1**: 시그널 알림 중복 방지 권장 패턴 문서화
+
+---
+
+## 2026-07-12 — 빗썸 노드 AI 메타데이터 완비 + 분봉 지원 (feature/bithumb-node-polish)
+
+**작업자**: Claude (jwko76 요청)
+
+### 내용
+
+**Task 1 — 빗썸 노드 6종 AI 메타데이터 보완 (기존 실패 6건 해소)**
+- Broker/Account/MarketData/Historical/NewOrder/CancelOrder에 누락된 `_anti_patterns`/`_examples`/`_node_guide` 추가
+  (CancelOrder는 `_features`도 누락이었음, 존재하지 않는 BithumbOpenOrdersNode 언급 제거)
+- 예제 스니펫 12개 전부 `WorkflowExecutor.validate()` 통과 확인
+- `test_node_schema_ai_fields` shape 테스트 6건 실패 → 0건, core 전체 1546 passed
+
+**Task 2 — BithumbHistoricalDataNode 분봉/주봉/월봉 지원 (v1.1.0)**
+- 노드: `interval` 필드 추가 (day/week/month/1m/3m/5m/10m/15m/30m/60m/240m, 기본 day) + ENUM FieldSchema
+- executor: interval → SDK 분기 (candles_minutes(unit)/days/weeks/months), 허용 외 값은 day 폴백 + 경고
+- finance SDK는 이미 4종 캔들 전부 래핑돼 있어 변경 없음
+- i18n: **기존 누락이던 BithumbHistoricalDataNode 노드/필드 키 전체** + interval enum 라벨 11종 (ko/en)
+- 라이브 검증: 엔진 전체 경로(ProgramGarden.run)로 5m/day/week/month 공개 API 실호출 확인
+
+---
+
+## 2026-07-11 — KIS 실전 API 검증 + 현재가 응답 필드 수정 (main)
+
+**작업자**: Claude (jwko76 요청)
+
+### 내용
+- 사용자 발급 실전투자 app key(.env, git-ignored)로 첫 라이브 검증 수행
+  - 토큰 발급 → 현재가(FHKST01010100)·호가(FHKST01010200)·일봉(FHKST03010100) 모두 정상 응답 확인
+  - 예제 기본값이 모의투자(KIS_PAPER=1)라 실전 키용으로 `.env`에 `KIS_PAPER=0` 추가
+- **버그 수정**: `InquirePriceOutBlock.hts_kor_isnm` — 실제 API 응답(80개 필드)에 없는 필드였음
+  - `bstp_kor_isnm`(업종 한글 종목명)으로 교체 (실응답 존재 확인), 예제·테스트 갱신
+  - 일봉 TR의 `hts_kor_isnm`은 실응답에 존재하므로 유지
+- 보안: 키 값 미열람(변수명만 grep), `.env`는 `.gitignore` `.env*` 규칙으로 미추적 확인, 토큰 캐시는 `~/.programgarden/` chmod 600
+- 테스트: KIS 관련 59개 전부 통과
+
+### 남은 라이브 검증
+- 잔고(TTTC8434R)·매수가능(TTTC8908R) 라이브 확인 완료 (보유종목 0, 현금만 보유 상태)
+- 주문/실시간 예제는 미실행 (주문=실주문 발생, 실시간=주말 장 마감) — 거래일에 사용자 판단 하에 진행
+
+---
+
 ## 2026-07-11 — 한국투자증권(KIS) 연동 + 멀티브로커 프레임워크 (feature/kis-broker)
 
 **작업자**: Claude (jwko76 요청)

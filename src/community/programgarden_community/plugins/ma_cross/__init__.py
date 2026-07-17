@@ -17,8 +17,8 @@ MA_CROSS_SCHEMA = PluginSchema(
     id="MovingAverageCross",
     name="Moving Average Cross",
     category=PluginCategory.TECHNICAL,
-    version="3.0.0",
-    description="Golden Cross (bullish) when short MA crosses above long MA, Dead Cross (bearish) when crossing below.",
+    version="3.1.0",
+    description="Golden Cross (bullish) when short MA crosses above long MA, Dead Cross (bearish) when crossing below. Fires once at the moment of crossover (edge trigger), not while short/long stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "short_period": {"type": "int", "default": 5, "title": "Short MA Period"},
@@ -129,9 +129,13 @@ async def ma_cross_condition(
         current_long_ma = long_ma_series[-1] if long_ma_series else 0
         
         is_bullish = current_short_ma > current_long_ma
+        prev_short_ma = short_ma_series[-2] if len(short_ma_series) >= 2 else None
+        prev_long_ma = long_ma_series[-2] if len(long_ma_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol, "exchange": exchange,
             "short_ma": round(current_short_ma, 4), "long_ma": round(current_long_ma, 4),
+            "prev_short_ma": round(prev_short_ma, 4) if prev_short_ma is not None else None,
+            "prev_long_ma": round(prev_long_ma, 4) if prev_long_ma is not None else None,
             "status": "bullish" if is_bullish else "bearish",
         })
         
@@ -170,7 +174,16 @@ async def ma_cross_condition(
         
         values.append({"symbol": symbol, "exchange": exchange, "time_series": time_series})
         
-        if (cross_type == "golden" and is_bullish) or (cross_type == "dead" and not is_bullish):
+        # 조건 판정 — 단기/장기 MA가 서로 뒤바뀌는 돌파 순간에만 통과 (알림 중복 방지)
+        if prev_short_ma is not None and prev_long_ma is not None:
+            if cross_type == "golden":
+                passed_condition = prev_short_ma <= prev_long_ma and current_short_ma > current_long_ma
+            else:
+                passed_condition = prev_short_ma >= prev_long_ma and current_short_ma < current_long_ma
+        else:
+            passed_condition = False
+
+        if passed_condition:
             passed.append(sym_dict)
         else:
             failed.append(sym_dict)

@@ -175,7 +175,7 @@ class TestZScorePlugin:
     def test_schema(self):
         """스키마 검증"""
         assert Z_SCORE_SCHEMA.id == "ZScore"
-        assert Z_SCORE_SCHEMA.version == "1.0.0"
+        assert Z_SCORE_SCHEMA.version == "1.1.0"
         assert "lookback" in Z_SCORE_SCHEMA.fields_schema
         assert "entry_threshold" in Z_SCORE_SCHEMA.fields_schema
         assert "exit_threshold" in Z_SCORE_SCHEMA.fields_schema

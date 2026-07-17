@@ -18,8 +18,8 @@ ULTIMATE_OSCILLATOR_SCHEMA = PluginSchema(
     id="UltimateOscillator",
     name="Ultimate Oscillator",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Larry Williams' Ultimate Oscillator combines three timeframes (7, 14, 28) into a single weighted oscillator. Reduces false signals by considering buying pressure across multiple periods.",
+    version="1.1.0",
+    description="Larry Williams' Ultimate Oscillator combines three timeframes (7, 14, 28) into a single weighted oscillator. Reduces false signals by considering buying pressure across multiple periods. Use cross_below/cross_above to fire only at the moment the threshold is crossed (edge trigger) instead of on every evaluation while the level holds.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period1": {
@@ -66,8 +66,12 @@ ULTIMATE_OSCILLATOR_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below",
             "title": "Direction",
-            "description": "below: oversold signal, above: overbought signal",
-            "enum": ["below", "above"],
+            "description": (
+                "below: oversold signal (fires every evaluation while held), above: overbought signal, "
+                "cross_below: fires once at the moment UO crosses under oversold (edge trigger), "
+                "cross_above: fires once at the moment UO crosses over overbought"
+            ),
+            "enum": ["below", "above", "cross_below", "cross_above"],
         },
     },
     required_data=["data"],
@@ -87,7 +91,7 @@ ULTIMATE_OSCILLATOR_SCHEMA = PluginSchema(
             "fields.period3": "장기 기간",
             "fields.overbought": "과매수 기준선",
             "fields.oversold": "과매도 기준선",
-            "fields.direction": "방향 (below: 과매도, above: 과매수)",
+            "fields.direction": "방향 (below: 과매도 레벨 — 유지 중 매 평가마다 발생, above: 과매수 레벨, cross_below: 하향 돌파 순간 1회 발생, cross_above: 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -240,15 +244,13 @@ async def ultimate_oscillator_condition(
         current_price = closes[-1] if closes else None
 
         uo_series = calculate_ultimate_oscillator(highs, lows, closes, period1, period2, period3)
-        uo_value = None
-        for v in reversed(uo_series):
-            if v is not None:
-                uo_value = v
-                break
+        valid_uo = [v for v in uo_series if v is not None]
+        uo_value = valid_uo[-1] if valid_uo else None
+        prev_uo = valid_uo[-2] if len(valid_uo) >= 2 else None
 
         symbol_results.append({
             "symbol": symbol, "exchange": exchange,
-            "uo": uo_value, "current_price": current_price,
+            "uo": uo_value, "prev_uo": prev_uo, "current_price": current_price,
         })
 
         ts = []
@@ -276,8 +278,14 @@ async def ultimate_oscillator_condition(
         if uo_value is not None:
             if direction == "below":
                 cond = uo_value < oversold
-            else:
+            elif direction == "above":
                 cond = uo_value > overbought
+            elif direction == "cross_below":
+                cond = prev_uo is not None and prev_uo >= oversold and uo_value < oversold
+            elif direction == "cross_above":
+                cond = prev_uo is not None and prev_uo <= overbought and uo_value > overbought
+            else:
+                cond = False
             (passed if cond else failed).append(sym_dict)
         else:
             failed.append(sym_dict)

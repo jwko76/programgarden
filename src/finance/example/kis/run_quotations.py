@@ -45,7 +45,7 @@ def test_inquire_price():
         return
 
     b = response.block
-    logger.info(f"{b.hts_kor_isnm} 현재가: {b.stck_prpr}원 ({b.prdy_vrss} / {b.prdy_ctrt}%)")
+    logger.info(f"005930({b.bstp_kor_isnm}) 현재가: {b.stck_prpr}원 ({b.prdy_vrss} / {b.prdy_ctrt}%)")
     logger.info(f"시가 {b.stck_oprc} / 고가 {b.stck_hgpr} / 저가 {b.stck_lwpr} / 거래량 {b.acml_vol}")
 
 
