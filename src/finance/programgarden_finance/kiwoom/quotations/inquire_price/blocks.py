@@ -1,8 +1,9 @@
 """키움증권 종목기본정보요청 (ka10001, 현재가 포함) 요청/응답 모델입니다.
 
-키움 필드명은 KIS의 UPPER_SNAKE 별칭과 달리 이미 소문자 약어이므로
-별도 serialization_alias가 필요 없다고 가정합니다.
-TODO(실계좌 검증): 실제 필드명 확인 필요.
+필드명은 2026-07-18 모의서버 라이브 응답으로 전부 확인됨. 가격 필드
+(cur_prc/open_pric/high_pric/low_pric/pred_pre)에는 등락 부호(+/-)가
+붙으므로 절대값 처리가 필요합니다. 응답에는 여기 정의된 것 외에도
+eps/roe/bps/시총(mac) 등 재무 필드가 다수 포함됩니다 (extra="ignore").
 """
 
 from typing import Optional
@@ -46,8 +47,8 @@ class InquirePriceOutBlock(BaseModel):
     high_pric: Optional[str] = Field(default=None, title="고가")
     low_pric: Optional[str] = Field(default=None, title="저가")
     trde_qty: Optional[str] = Field(default=None, title="거래량")
-    per: Optional[str] = Field(default=None, title="PER", description="TODO(실계좌 검증): 필드명 확인")
-    pbr: Optional[str] = Field(default=None, title="PBR", description="TODO(실계좌 검증): 필드명 확인")
+    per: Optional[str] = Field(default=None, title="PER")
+    pbr: Optional[str] = Field(default=None, title="PBR")
 
 
 class InquirePriceResponse(KiwoomResponseBase):

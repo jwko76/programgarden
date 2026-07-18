@@ -4,10 +4,13 @@
 파이썬 DSL로 래핑합니다. LS증권·빗썸·KIS와 동일한 TR 클래스 패턴을 따르며,
 실전투자와 모의투자를 플래그 하나로 전환할 수 있습니다.
 
-> **⚠️ 실계좌 검증 전 상태**: 키움 공식 문서로 확인되지 않은 필드명·코드값은
-> 소스에 `TODO(실계좌 검증)` 주석으로 표시되어 있습니다. 실계좌/모의계좌
-> 라이브 검증 시 응답 필드 불일치가 발견되면 blocks.py의 필드명만 교정하면
-> 되도록 설계되어 있습니다.
+> **검증 현황 (2026-07-18, 모의서버 라이브)**: 토큰 발급·현재가(ka10001)·
+> 호가(ka10004)·일봉(ka10081)·잔고(kt00018)·WebSocket LOGIN까지 라이브 확인
+> 완료. 미검증: 주문 접수/체결(영업일 필요), 잔고 보유종목 항목 필드(보유
+> 종목 필요), 주문가능(kt00010 — **모의서버 미지원**, RC7006), 장중 실시간
+> 체결 데이터. 실전 서버는 앱의 **지정단말기 인증**(오류 8050) 해제/등록
+> 전까지 토큰 발급이 거부됩니다. 남은 미확인 항목은 소스의
+> `TODO(실계좌 검증)` 주석 참조.
 
 ---
 
@@ -94,10 +97,13 @@ print(resp.block.cur_prc)   # 현재가
 
 ```python
 resp = kiwoom.계좌().잔고().req()      # 로그인 시 등록한 계좌 사용
-print(resp.block.entr)                 # 예수금
-for p in resp.blocks:                  # 보유 종목
+print(resp.block.prsm_dpst_aset_amt)   # 추정예탁자산 (예수금 전용 필드는 kt00018에 없음)
+for p in resp.blocks:                  # 보유 종목 (acnt_evlt_remn_indv_tot)
     print(p.stk_cd, p.rmnd_qty, p.evltv_prft)
 ```
+
+숫자 필드는 `"000000010000000"` 같은 zero-padded 문자열로 오며, 현재가/호가
+가격에는 등락 부호(+/-)가 붙습니다 (`float()` 변환은 그대로 동작).
 
 ### 주문 → 취소
 
@@ -146,9 +152,11 @@ notice.체결통보수신(lambda r: print(r))
 프로토콜 특성 (KIS와의 차이):
 
 - 메시지가 파이프 텍스트가 아닌 **JSON** — 필드명 기반 파싱
-- 접속 인증에 REST 접근토큰을 그대로 사용 (approval_key 발급 절차 없음)
-- 체결통보 AES 암호화 없음(으로 추정)
-- WebSocket 주소는 공식 문서 미확인 추정치 (`config.URLS.WS_URL` 한 줄 수정으로 교체 가능)
+- 접속 인증에 REST 접근토큰을 그대로 사용 (approval_key 발급 절차 없음) —
+  접속 후 `{"trnm": "LOGIN", "token": ...}` 전송, 응답 `return_code=0` 확인 (라이브 검증됨)
+- 주소: 실전 `wss://api.kiwoom.com:10000/api/dostk/websocket` /
+  모의 `wss://mockapi.kiwoom.com:10000/api/dostk/websocket` (모의 라이브 접속 확인)
+- 체결통보 AES 암호화 없음(으로 추정) — 장중 데이터 수신은 미검증
 
 ---
 

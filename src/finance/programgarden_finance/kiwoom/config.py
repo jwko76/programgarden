@@ -5,9 +5,8 @@ KIS와 달리 실전투자/모의투자는 tr_id 분기가 아니라 **도메인
 - 모의: https://mockapi.kiwoom.com
 - 주문·계좌·시세 TR ID(``api-id``)는 실전/모의 공통이며 단일 문자열입니다.
 
-실시간 WebSocket 접속 주소는 공식 문서로 확인되지 않아 커뮤니티 자료를
-기준으로 한 추정치입니다. 상수 한 줄만 고치면 되도록 ``URLS`` 에 분리해
-두었습니다.
+실시간 WebSocket도 실전/모의 호스트가 분리되어 있으며 경로는
+``/api/dostk/websocket`` 입니다 (2026-07-18 모의서버 라이브 접속으로 확인).
 """
 
 from dataclasses import dataclass
@@ -20,11 +19,9 @@ class URLS:
     PROD_URL: str = "https://api.kiwoom.com"
     MOCK_URL: str = "https://mockapi.kiwoom.com"
 
-    # 실시간 WebSocket
-    # TODO(실계좌 검증): 공식 문서로 확인되지 않은 추정 주소입니다.
-    # 모의투자 전용 WS 호스트가 별도로 존재하는지도 미확인이라 우선
-    # 실전과 동일한 주소를 사용합니다.
-    WS_URL: str = "wss://api.kiwoom.com:10000"
+    # 실시간 WebSocket — 실전/모의 호스트 분리, 경로 /api/dostk/websocket
+    WS_URL: str = "wss://api.kiwoom.com:10000/api/dostk/websocket"
+    MOCK_WS_URL: str = "wss://mockapi.kiwoom.com:10000/api/dostk/websocket"
 
     # OAuth
     TOKEN_PATH: str = "/oauth2/token"
@@ -47,12 +44,8 @@ class URLS:
 
     @classmethod
     def get_ws_url(cls, paper_trading: bool) -> str:
-        """실시간 WebSocket URL을 반환합니다.
-
-        TODO(실계좌 검증): 모의투자 전용 WS 호스트가 별도로 있는지 확인이
-        필요합니다. 현재는 실전/모의 모두 동일 주소를 사용합니다.
-        """
-        return cls.WS_URL
+        """실전/모의 실시간 WebSocket URL을 반환합니다."""
+        return cls.MOCK_WS_URL if paper_trading else cls.WS_URL
 
 
 class TR_IDS:

@@ -1,17 +1,14 @@
 """키움증권 시세 조회 예제: 현재가·호가·일봉.
 
-환경변수 (.env):
-    KIWOOM_APPKEY, KIWOOM_APPSECRET (키움 OpenAPI에서 발급)
-    KIWOOM_PAPER=1 이면 모의투자 서버(mockapi.kiwoom.com) 사용
+환경변수 (.env): _env.py 참조 — KIWOOM_PAPER=1 이면 KIWOOM_MOCK_* 키로
+모의투자 서버(mockapi.kiwoom.com) 사용.
 """
 
 import logging
-import os
 
-from dotenv import load_dotenv
+from _env import make_client
 
 from programgarden_finance import (
-    Kiwoom,
     kiwoom_inquire_price,
     kiwoom_inquire_asking_price,
     kiwoom_inquire_daily_itemchartprice,
@@ -19,17 +16,6 @@ from programgarden_finance import (
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
-
-load_dotenv()
-
-
-def make_client() -> Kiwoom:
-    kiwoom = Kiwoom(paper_trading=os.getenv("KIWOOM_PAPER", "1") == "1")
-    kiwoom.login(
-        appkey=os.getenv("KIWOOM_APPKEY"),
-        appsecretkey=os.getenv("KIWOOM_APPSECRET"),
-    )
-    return kiwoom
 
 
 def test_inquire_price():
@@ -62,8 +48,8 @@ def test_inquire_asking_price():
         return
 
     b = response.block
-    logger.info(f"매도1호가 {b.sel_1th_pre_req_pric}({b.sel_1th_pre_req_qty}) / "
-                f"매수1호가 {b.buy_1th_pre_req_pric}({b.buy_1th_pre_req_qty})")
+    logger.info(f"매도1호가 {b.sel_fpr_bid}({b.sel_fpr_req}) / "
+                f"매수1호가 {b.buy_fpr_bid}({b.buy_fpr_req})")
     logger.info(f"총 매도잔량 {b.tot_sel_req} / 총 매수잔량 {b.tot_buy_req}")
 
 

@@ -39,9 +39,10 @@ class TrInquireDailyItemChartPrice(GenericKiwoomTR[InquireDailyItemChartPriceRes
             )
 
         # 키움은 빈 항목이 섞여 올 수 있어 일자 없는 항목은 제외합니다 (KIS 패턴 준용).
+        # 리스트 키 stk_dt_pole_chart_qry는 2026-07-18 모의서버 라이브 응답으로 확인됨.
         blocks = [
             InquireDailyItemChartPriceOutCandle.model_validate(item)
-            for item in (data.get("stk_dt_pole") or [])
+            for item in (data.get("stk_dt_pole_chart_qry") or [])
             if isinstance(item, dict) and item.get("dt")
         ]
         return InquireDailyItemChartPriceResponse(

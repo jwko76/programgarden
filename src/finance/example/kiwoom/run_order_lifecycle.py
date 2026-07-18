@@ -1,38 +1,24 @@
 """키움증권 주문 라이프사이클 예제: 지정가 매수 → 취소 (모의투자 권장).
 
-환경변수 (.env):
-    KIWOOM_APPKEY, KIWOOM_APPSECRET, KIWOOM_ACCOUNT_NO
-    KIWOOM_PAPER=1 이면 모의투자 서버(mockapi.kiwoom.com) 사용
+환경변수 (.env): _env.py 참조 — KIWOOM_PAPER=1 이면 KIWOOM_MOCK_* 키로
+모의투자 서버(mockapi.kiwoom.com) 사용.
 
 주의: KIWOOM_PAPER=0 이면 실계좌에 실제 주문이 전송됩니다.
       체결 방지를 위해 현재가보다 충분히 낮은 지정가를 사용하세요.
 """
 
 import logging
-import os
 
-from dotenv import load_dotenv
+from _env import make_client
 
-from programgarden_finance import Kiwoom, kiwoom_order_cash, kiwoom_order_rvsecncl
+from programgarden_finance import kiwoom_order_cash, kiwoom_order_rvsecncl
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
 SYMBOL = "005930"
 LIMIT_PRICE = "50000"  # 체결 방지용 저가 지정가
 QUANTITY = "1"
-
-
-def make_client() -> Kiwoom:
-    kiwoom = Kiwoom(paper_trading=os.getenv("KIWOOM_PAPER", "1") == "1")
-    kiwoom.login(
-        appkey=os.getenv("KIWOOM_APPKEY"),
-        appsecretkey=os.getenv("KIWOOM_APPSECRET"),
-        account_no=os.getenv("KIWOOM_ACCOUNT_NO"),
-    )
-    return kiwoom
 
 
 def main():

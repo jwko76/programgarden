@@ -2,7 +2,11 @@
 
 KIS는 output1(호가)/output2(예상체결)로 나뉘지만, 키움은 별도 봉투 키가
 없어 하나의 최상위 블록으로 합쳐 모델링합니다.
-TODO(실계좌 검증): 실제 필드명/구조 확인 필요.
+
+필드명은 2026-07-18 모의서버 라이브 응답으로 확인됨: 최우선호가는
+``sel_fpr_bid``/``buy_fpr_bid``(fpr = first price)이고 2~10차는
+``sel_2th_pre_bid`` 형식이며 ``_bid``가 가격, ``_req``가 잔량입니다.
+호가 가격에는 등락 부호(+/-)가 붙습니다.
 """
 
 from typing import Optional
@@ -32,13 +36,13 @@ class InquireAskingPriceOutBlock(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    sel_1th_pre_req_pric: Optional[str] = Field(default=None, title="매도호가1", description="TODO(실계좌 검증): 필드명 확인")
-    buy_1th_pre_req_pric: Optional[str] = Field(default=None, title="매수호가1", description="TODO(실계좌 검증): 필드명 확인")
-    sel_1th_pre_req_qty: Optional[str] = Field(default=None, title="매도호가잔량1")
-    buy_1th_pre_req_qty: Optional[str] = Field(default=None, title="매수호가잔량1")
+    sel_fpr_bid: Optional[str] = Field(default=None, title="매도최우선호가", description="등락 부호(+/-) 포함")
+    sel_fpr_req: Optional[str] = Field(default=None, title="매도최우선호가잔량")
+    buy_fpr_bid: Optional[str] = Field(default=None, title="매수최우선호가", description="등락 부호(+/-) 포함")
+    buy_fpr_req: Optional[str] = Field(default=None, title="매수최우선호가잔량")
     tot_sel_req: Optional[str] = Field(default=None, title="총매도호가잔량")
     tot_buy_req: Optional[str] = Field(default=None, title="총매수호가잔량")
-    cur_prc: Optional[str] = Field(default=None, title="현재가")
+    bid_req_base_tm: Optional[str] = Field(default=None, title="호가잔량기준시간", description="HHMMSS")
 
 
 class InquireAskingPriceResponse(KiwoomResponseBase):

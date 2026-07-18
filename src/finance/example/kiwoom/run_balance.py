@@ -1,31 +1,17 @@
 """키움증권 계좌 조회 예제: 잔고·주문가능금액.
 
-환경변수 (.env):
-    KIWOOM_APPKEY, KIWOOM_APPSECRET, KIWOOM_ACCOUNT_NO
-    KIWOOM_PAPER=1 이면 모의투자 서버(mockapi.kiwoom.com) 사용
+환경변수 (.env): _env.py 참조 — KIWOOM_PAPER=1 이면 KIWOOM_MOCK_* 키로
+모의투자 서버(mockapi.kiwoom.com) 사용.
 """
 
 import logging
-import os
 
-from dotenv import load_dotenv
+from _env import make_client
 
-from programgarden_finance import Kiwoom, kiwoom_inquire_psbl_order
+from programgarden_finance import kiwoom_inquire_psbl_order
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
-
-load_dotenv()
-
-
-def make_client() -> Kiwoom:
-    kiwoom = Kiwoom(paper_trading=os.getenv("KIWOOM_PAPER", "1") == "1")
-    kiwoom.login(
-        appkey=os.getenv("KIWOOM_APPKEY"),
-        appsecretkey=os.getenv("KIWOOM_APPSECRET"),
-        account_no=os.getenv("KIWOOM_ACCOUNT_NO"),
-    )
-    return kiwoom
 
 
 def test_inquire_balance():
@@ -39,8 +25,8 @@ def test_inquire_balance():
         return
 
     s = response.block
-    logger.info(f"예수금 {s.entr} / 총매입 {s.tot_pur_amt} / 총평가 {s.tot_evlt_amt} / "
-                f"평가손익 {s.tot_evlt_pl} ({s.tot_pl_rt}%)")
+    logger.info(f"추정예탁자산 {s.prsm_dpst_aset_amt} / 총매입 {s.tot_pur_amt} / 총평가 {s.tot_evlt_amt} / "
+                f"평가손익 {s.tot_evlt_pl} ({s.tot_prft_rt}%)")
     for p in response.blocks or []:
         logger.info(f"  {p.stk_cd}({p.stk_nm}) {p.rmnd_qty}주 매입가 {p.pur_pric} "
                     f"현재가 {p.cur_prc} 평가손익 {p.evltv_prft}")

@@ -10,20 +10,22 @@ from programgarden_finance.kiwoom.accno.inquire_psbl_order import InquirePsblOrd
 TOKEN_URL = f"{URLS.MOCK_URL}{URLS.TOKEN_PATH}"
 ACNT_URL = f"{URLS.MOCK_URL}{URLS.ACNT_PATH}"
 
+# 리스트 키·요약 필드명은 2026-07-18 모의서버 라이브 응답으로 확인됨
 BALANCE_RESPONSE = {
     "return_code": 0, "return_msg": "정상",
-    "stk_acnt_evlt_prst": [
+    "acnt_evlt_remn_indv_tot": [
         {
             "stk_cd": "005930", "stk_nm": "삼성전자",
             "rmnd_qty": "10", "pur_pric": "70000",
             "cur_prc": "71900", "evlt_amt": "719000",
-            "evltv_prft": "19000", "pl_rt": "2.71",
+            "evltv_prft": "19000", "prft_rt": "2.71",
         },
     ],
-    "entr": "10000000",
+    "prsm_dpst_aset_amt": "000000010000000",
     "tot_pur_amt": "700000",
     "tot_evlt_amt": "10719000",
     "tot_evlt_pl": "19000",
+    "tot_prft_rt": "000000002.71",
 }
 
 
@@ -46,7 +48,9 @@ class TestInquireBalanceMock:
         assert len(resp.blocks) == 1
         assert resp.blocks[0].stk_cd == "005930"
         assert resp.blocks[0].rmnd_qty == "10"
-        assert resp.block.entr == "10000000"
+        assert resp.blocks[0].prft_rt == "2.71"
+        assert resp.block.prsm_dpst_aset_amt == "000000010000000"
+        assert resp.block.tot_prft_rt == "000000002.71"
 
         req = requests_mock.last_request
         assert req.headers["api-id"] == "kt00018"

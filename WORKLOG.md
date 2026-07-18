@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-18 (2) — 키움 모의서버 1차 라이브 검증 + 응답 필드 교정 (feature/kiwoom-broker)
+
+**작업자**: Claude (jwko76이 .env에 키움 app key 등록 — 키 값은 열람·표출하지 않고 검증만 수행)
+
+### .env 키 구조
+실전 `KIWOOM_APPKEY/APPSECRET/ACCOUNT_NO` + 모의 `KIWOOM_MOCK_*` 분리 구조로 등록됨 —
+예제 공용 헬퍼 `example/kiwoom/_env.py` 신설, `KIWOOM_PAPER=1`(기본)이면 MOCK_* 키 자동 선택.
+
+### 모의서버(mockapi.kiwoom.com) 검증 결과
+- **토큰 발급 성공** (24h TTL, 파일캐시 복원 동작 확인)
+- **현재가 ka10001**: 추정 필드 11개 전부 실제 응답과 일치. 가격 필드에 등락 부호(+/-)
+  확인 → executor의 abs() 처리 적중. eps/roe/bps 등 재무 필드도 다수 수신
+- **호가 ka10004**: 최우선호가 필드가 `sel_fpr_bid`/`buy_fpr_bid`(fpr=first price)로 확인
+  → blocks 교정 (추정했던 `*_1th_pre_req_pric`은 없음). 2~10차는 `sel_2th_pre_bid` 형식
+- **일봉 ka10081**: 리스트 키 `stk_dt_pole_chart_qry`로 확인 → 교정 (추정 `stk_dt_pole` ✗).
+  캔들 내부 필드명은 전부 적중, 600건 수신, 일봉 가격에는 부호 없음
+- **잔고 kt00018**: 리스트 키 `acnt_evlt_remn_indv_tot`, 요약에 예수금(entr) 없음 →
+  `prsm_dpst_aset_amt`(추정예탁자산)로 교정, 손익률은 `tot_prft_rt`. 숫자는 zero-padded
+  문자열("000000010000000") — _to_float 정상 처리. 보유종목 0건이라 항목 내부 필드는 미확인
+- **주문가능 kt00010**: 모의서버 미지원 확인 (return_code=20, RC7006) — blocks 주석 반영
+- **주문 kt10000**: 주말이라 RC4010(모의투자 영업일이 아닙니다) — 요청 형식은 서버가
+  정상 해석, 접수 검증은 다음 영업일로 이월
+- **WebSocket**: 주소를 실전/모의 분리 + `/api/dostk/websocket` 경로로 교정 후
+  접속·LOGIN(return_code=0, REST 토큰 재사용)·REG 등록까지 성공. 데이터 프레임은 장중 확인 필요
+
+### 실전 서버
+토큰 발급이 `[8050:지정단말기 인증에 실패했습니다]`로 거부 — 코드가 아닌 계정 설정 이슈.
+사용자가 키움 OpenAPI 사이트에서 지정단말기 등록(또는 인증 해제) 후 재시도 필요.
+
+### 테스트
+finance 키움 59건을 확정 필드명 기반 fixture로 갱신 후 전부 통과.
+잔여 검증 항목은 TODO.md "보류 중" 갱신.
+
+---
+
 ## 2026-07-18 — 키움증권 브로커 전체 연동 (feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
 
 **작업자**: Claude (jwko76 요청 — TODO.md "키움증권 브로커" 진행. KIS 패턴 복제)

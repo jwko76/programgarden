@@ -205,11 +205,11 @@ class KiwoomAccountNodeExecutor(_KiwoomExecutorBase):
                 return _error(resp.error_msg)
 
             summary = resp.block
-            deposit = _to_float(getattr(summary, "entr", None))
+            # kt00018 요약에는 예수금(entr)이 없어 추정예탁자산으로 대체합니다
+            # (라이브 확인: 2026-07-18). 예수금 상세는 kt00001 TR 필요 (미구현).
+            deposit = _to_float(getattr(summary, "prsm_dpst_aset_amt", None))
             balance = {
                 "deposit": deposit,
-                # 키움 kt00018 요약에는 별도 주문가능현금 필드가 확인되지 않아
-                # 예수금으로 대체합니다. TODO(실계좌 검증): 전용 필드 확인 시 교체.
                 "orderable_amount": deposit,
                 "total_evaluation": _to_float(getattr(summary, "tot_evlt_amt", None)),
                 "total_purchase": _to_float(getattr(summary, "tot_pur_amt", None)),
@@ -226,14 +226,12 @@ class KiwoomAccountNodeExecutor(_KiwoomExecutorBase):
                     "symbol": blk.stk_cd,
                     "symbol_name": blk.stk_nm,
                     "quantity": quantity,
-                    # 키움 잔고 응답에 주문가능수량 필드가 확인되지 않아 보유수량으로
-                    # 대체합니다. TODO(실계좌 검증): 전용 필드 확인 시 교체.
-                    "orderable_quantity": quantity,
+                    "orderable_quantity": _to_float(blk.trde_able_qty, quantity),
                     "avg_buy_price": _to_float(blk.pur_pric),
-                    "current_price": _to_float(blk.cur_prc),
+                    "current_price": abs(_to_float(blk.cur_prc)),
                     "evaluation_amount": _to_float(blk.evlt_amt),
                     "profit_loss": _to_float(blk.evltv_prft),
-                    "profit_loss_rate": _to_float(blk.pl_rt),
+                    "profit_loss_rate": _to_float(blk.prft_rt),
                 })
                 held_symbols.append({"symbol": blk.stk_cd})
 

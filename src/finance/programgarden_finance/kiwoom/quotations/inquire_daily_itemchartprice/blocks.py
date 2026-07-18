@@ -1,7 +1,9 @@
 """키움증권 주식일봉차트조회요청 (ka10081) 요청/응답 모델입니다.
 
-캔들 목록은 이름 있는 리스트 키(``stk_dt_pole``)로 온다고 가정합니다.
-TODO(실계좌 검증): 실제 필드명/리스트 키 확인 필요.
+캔들 목록은 리스트 키 ``stk_dt_pole_chart_qry``로 옵니다. 캔들 필드명
+(dt/open_pric/high_pric/low_pric/cur_prc/trde_qty)은 2026-07-18 모의서버
+라이브 응답으로 확인됨. 일봉 가격에는 현재가 응답과 달리 등락 부호가
+붙지 않으며, 기본 600건이 반환됩니다.
 """
 
 from typing import List, Optional

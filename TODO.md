@@ -15,12 +15,18 @@
 
 ## 보류 중
 
-- [ ] **키움증권 실계좌(라이브) 검증** — 구현은 완료 (feature/kiwoom-broker, 아래 "완료됨" 참조), 사용자 app key 발급 대기 중
-  - 검증 대상: 소스의 `TODO(실계좌 검증)` 항목 전부 — 응답 필드명(잔고 kt00018/현재가 ka10001/일봉 ka10081),
-    주문 trde_tp 코드값(지정가 "0"/시장가 "3" 추정), 취소 전량 처리 규칙(ord_qty="0" 추정),
-    WebSocket 주소(`wss://api.kiwoom.com:10000` 추정)·메시지 구조, rate-limit 정책(초당 20건 차용)
-  - 검증 순서: 토큰 발급 → `run_quotations.py` → `run_balance.py` → (모의) `run_order_lifecycle.py` → `run_real_ccnl.py`
-  - 필드 불일치 발견 시 해당 blocks.py 필드명만 교정하면 되도록 설계됨
+- [ ] **키움증권 라이브 검증 — 잔여분** (2026-07-18 모의서버 1차 검증 완료, 아래 "완료됨" 참조)
+  - [ ] **주문 접수/체결** — 모의서버가 주말 거부(RC4010: 모의투자 영업일이 아닙니다). **다음 영업일 장중**
+    `KIWOOM_PAPER=1 .venv-bithumb/bin/python src/finance/example/kiwoom/run_order_lifecycle.py` (WSL) 재시도.
+    trde_tp 코드값(지정가 "0"/시장가 "3" 추정)·취소 전량 규칙(ord_qty="0" 추정)·주문 응답 필드 확인
+  - [ ] **장중 실시간 체결 데이터** — WS 접속·LOGIN·REG는 성공, 실제 0B 데이터 프레임 구조는 장중에만 확인 가능
+    (`run_real_ccnl.py`). 체결통보(00)는 주문과 함께 검증
+  - [ ] **잔고 보유종목 항목 필드** — 모의계좌에 보유 종목이 없어 `acnt_evlt_remn_indv_tot` 항목 내부 필드명 미확인.
+    모의 매수 체결 후 `run_balance.py`로 확인
+  - [ ] **실전 서버** — 토큰 발급이 `[8050:지정단말기 인증에 실패했습니다]`로 거부됨.
+    **사용자 액션 필요**: 키움 OpenAPI 사이트에서 지정단말기(IP) 등록 또는 지정단말기 인증 사용 해제 후 재시도
+  - [ ] **주문가능(kt00010) 응답 필드** — 모의서버 미지원(RC7006)이라 실전 서버 접속 가능해진 뒤 확인
+  - [ ] rate-limit 정책 실측 (현재 KIS 기준 초당 20건 차용)
 
 ## 다음 작업 후보
 - [ ] **조건 플러그인 크로스 트리거 확대 — Phase 2/3** (Phase 0/1은 완료, 아래 "완료됨" 참조)
@@ -35,6 +41,16 @@
 ---
 
 ## 완료됨
+
+- [x] **키움증권 모의서버 1차 라이브 검증** (2026-07-18, feature/kiwoom-broker)
+  - 토큰 발급(24h TTL, 파일캐시 복원) / 현재가 ka10001(추정 필드 전부 적중, 가격 등락부호 확인) /
+    호가 ka10004(최우선호가는 `sel_fpr_bid`/`buy_fpr_bid`로 교정) /
+    일봉 ka10081(리스트 키 `stk_dt_pole_chart_qry`로 교정, 600건 수신) /
+    잔고 kt00018(리스트 키 `acnt_evlt_remn_indv_tot`, 예수금 없음 → `prsm_dpst_aset_amt`로 교정)
+  - WebSocket: `wss://mockapi.kiwoom.com:10000/api/dostk/websocket` 접속 + LOGIN return_code=0 + REG 정상
+    (실전/모의 호스트 분리, 경로 확정 — config.py 교정)
+  - .env 키 구조: 실전 `KIWOOM_*` / 모의 `KIWOOM_MOCK_*` 분리 — 예제 공용 `_env.py`로 자동 선택
+  - finance 키움 테스트 59건 확정 필드명으로 갱신 후 통과
 
 - [x] **키움증권 브로커 전체 연동** (2026-07-18, feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
   - finance SDK kiwoom/: TR 9종 + 실시간 2종 (도메인 전환식 실전/모의, POST 단일 바디, 토큰 파일캐시)

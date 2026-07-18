@@ -39,9 +39,10 @@ class TrInquireBalance(GenericKiwoomTR[InquireBalanceResponse]):
                 error_msg=return_msg or f"HTTP {status}",
             )
 
+        # 리스트 키 acnt_evlt_remn_indv_tot는 2026-07-18 모의서버 라이브 응답으로 확인됨.
         blocks = [
             InquireBalanceOutBlock1.model_validate(item)
-            for item in (data.get("stk_acnt_evlt_prst") or [])
+            for item in (data.get("acnt_evlt_remn_indv_tot") or [])
             if isinstance(item, dict)
         ]
         block = InquireBalanceOutBlock2.model_validate(data)

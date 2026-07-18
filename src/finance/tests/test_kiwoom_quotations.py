@@ -79,8 +79,9 @@ class TestInquireAskingPriceMock:
             f"{URLS.MOCK_URL}{URLS.MRKCOND_PATH}",
             json={
                 "return_code": 0, "return_msg": "정상",
-                "sel_1th_pre_req_pric": "72000", "buy_1th_pre_req_pric": "71900",
-                "sel_1th_pre_req_qty": "1000", "buy_1th_pre_req_qty": "2000",
+                # 최우선호가 필드명(fpr)은 2026-07-18 모의서버 라이브 응답으로 확인됨
+                "sel_fpr_bid": "-72000", "buy_fpr_bid": "-71900",
+                "sel_fpr_req": "1000", "buy_fpr_req": "2000",
                 "tot_sel_req": "50000", "tot_buy_req": "60000",
             },
         )
@@ -89,8 +90,8 @@ class TestInquireAskingPriceMock:
         ).req()
 
         assert resp.error_msg is None
-        assert resp.block.sel_1th_pre_req_pric == "72000"
-        assert resp.block.buy_1th_pre_req_pric == "71900"
+        assert resp.block.sel_fpr_bid == "-72000"
+        assert resp.block.buy_fpr_bid == "-71900"
         assert requests_mock.last_request.headers["api-id"] == "ka10004"
 
 
@@ -100,7 +101,8 @@ class TestInquireDailyItemChartPriceMock:
             f"{URLS.MOCK_URL}{URLS.CHART_PATH}",
             json={
                 "return_code": 0, "return_msg": "정상",
-                "stk_dt_pole": [
+                # 리스트 키는 2026-07-18 모의서버 라이브 응답으로 확인됨
+                "stk_dt_pole_chart_qry": [
                     {"dt": "20260711", "open_pric": "72000", "high_pric": "72100",
                      "low_pric": "71500", "cur_prc": "71900", "trde_qty": "9999999"},
                     {"dt": "20260710", "open_pric": "71000", "high_pric": "72500",
