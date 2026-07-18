@@ -467,11 +467,12 @@ Each broker type serves specific node types. Do not mix:
 | OverseasFuturesBrokerNode | OverseasFutures* nodes |
 | KoreaStockBrokerNode | KoreaStock* nodes (LS증권 국내주식) |
 | KisBrokerNode | Kis* nodes (한국투자증권 국내주식) |
+| KiwoomBrokerNode | Kiwoom* nodes (키움증권 국내주식) |
 | BithumbBrokerNode | Bithumb* nodes (coin) |
 
-**Note**: `BithumbMarketDataNode` uses the public Bithumb API and does **not** require `BithumbBrokerNode`. All other Bithumb nodes (Account, NewOrder, CancelOrder) require it. KIS quotes (`KisMarketDataNode`) DO require `KisBrokerNode` — the KIS API authenticates every call.
+**Note**: `BithumbMarketDataNode` uses the public Bithumb API and does **not** require `BithumbBrokerNode`. All other Bithumb nodes (Account, NewOrder, CancelOrder) require it. KIS quotes (`KisMarketDataNode`) and Kiwoom quotes (`KiwoomMarketDataNode`) DO require their broker node — both APIs authenticate every call.
 
-**Multi-broker (same scope)**: brokers are keyed by `(product_scope, broker_provider)`. Two brokers of the *same* provider and scope are rejected, but LS `KoreaStockBrokerNode` and `KisBrokerNode` (both `korea_stock`) can coexist in one workflow — each `KoreaStock*` / `Kis*` node auto-binds to its own provider's connection. A provider-agnostic node in a multi-broker scope binds to the first matching broker in declaration order.
+**Multi-broker (same scope)**: brokers are keyed by `(product_scope, broker_provider)`. Two brokers of the *same* provider and scope are rejected, but LS `KoreaStockBrokerNode`, `KisBrokerNode`, and `KiwoomBrokerNode` (all `korea_stock`) can coexist in one workflow — each `KoreaStock*` / `Kis*` / `Kiwoom*` node auto-binds to its own provider's connection. A provider-agnostic node in a multi-broker scope binds to the first matching broker in declaration order.
 
 ---
 
@@ -663,6 +664,24 @@ All display nodes output:
 | KisCancelOrderNode | cancelled_order_no | string | Cancelled order number |
 
 **Credential `broker_kis`**: `appkey`, `appsecret`, `account_no` (CANO 8자리), `account_product_code` (기본 `01`). `KisBrokerNode.paper_trading=true` switches to the KIS paper server and order TR IDs flip automatically (TTTC↔VTTC).
+
+### Kiwoom Nodes (키움증권 국내주식)
+
+| Node | Port | Type | Description |
+|------|------|------|-------------|
+| KiwoomBrokerNode | connection | broker_connection | Kiwoom API connection incl. `paper_trading` flag (auto-injected) |
+| KiwoomAccountNode | balance | balance_data | Deposit summary (deposit, orderable_amount, total_evaluation, total_profit_loss) |
+| KiwoomAccountNode | positions | position_data | Held stocks (symbol, symbol_name, quantity, avg_buy_price, current_price, profit_loss) |
+| KiwoomAccountNode | held_symbols | symbol_list | Held symbol codes (e.g. `[{"symbol": "005930"}]`) |
+| KiwoomMarketDataNode | values | market_data | Price array (symbol, current_price, change_rate, volume, per, pbr, …) |
+| KiwoomHistoricalDataNode | time_series | symbol_series | ConditionNode-ready `[{symbol, exchange: "KRX", time_series}]` (oldest-first) |
+| KiwoomHistoricalDataNode | values | candle_data | Raw daily candles, newest-first (symbol, date, open, high, low, close, volume) |
+| KiwoomNewOrderNode | result | order_result | Order result (order_no, symbol, side, quantity, price, paper_trading, status) |
+| KiwoomNewOrderNode | order_no | string | Shortcut to result.order_no |
+| KiwoomCancelOrderNode | cancel_result | order_result | Cancel result (order_no, status) |
+| KiwoomCancelOrderNode | cancelled_order_no | string | Cancelled order number |
+
+**Credential `broker_kiwoom`**: `appkey`, `appsecret`, `account_no` (단일 필드). `KiwoomBrokerNode.paper_trading=true` switches the **connection domain** to the mock server (`mockapi.kiwoom.com`) — unlike KIS, api-ids stay the same in both modes. `KiwoomCancelOrderNode` additionally requires a `symbol` field (Kiwoom's cancel api-id kt10003 needs the stock code; bind `{{ nodes.<order>.result.symbol }}`).
 
 ### Messaging Nodes
 

@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-07-18 — 키움증권 브로커 전체 연동 (feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
+
+**작업자**: Claude (jwko76 요청 — TODO.md "키움증권 브로커" 진행. KIS 패턴 복제)
+
+### finance SDK `kiwoom/` (커밋 af78fd8)
+TR 9종(현재가 ka10001 / 호가 ka10004 / 일봉 ka10081 / 잔고 kt00018 / 주문가능 kt00010 /
+현금매수 kt10000 / 현금매도 kt10001 / 정정 kt10002 / 취소 kt10003) + 실시간 2종
+(체결 0B / 주문체결통보 00), 단위테스트 59건. KIS와의 구조 차이를 반영:
+실전/모의가 tr_id 분기가 아닌 **도메인 전환**(api ↔ mockapi.kiwoom.com), 모든 TR이
+POST 단일 JSON 바디, 응답 봉투 return_code/return_msg, 토큰 발급 필드 secretkey.
+공식 문서 미확인 필드는 `TODO(실계좌 검증)` 주석으로 표시.
+
+### core 노드 6종 (커밋 9b84acc)
+`Kiwoom{Broker,Account,MarketData,HistoricalData,NewOrder,CancelOrder}Node` +
+`BrokerProvider.KIWOOM`, 레지스트리 등록, i18n(ko/en), AI 메타데이터
+(_usage/_features/_anti_patterns/_examples/_node_guide) 완비, 노드 테스트 322줄.
+멀티브로커 `(scope, provider)` 키로 LS·KIS와 국내주식 3사 공존.
+
+### executor 레이어 + 예제 + 문서 (이번 커밋)
+- `kiwoom_executors.py` 6종 (kis_executors 패턴) + executor.py `_init_kiwoom_executors` 등록
+- deep_fixtures: `kiwoom_account/market_data/historical_fixture`(KIS shape 재사용) +
+  `broker_connection_fixture` Kiwoom 분기 — deep_validate에서 클라이언트 생성 금지 보장
+- **KiwoomCancelOrderNode에 `symbol` 필드 추가** — 키움 취소 api-id(kt10003)는 KIS와
+  달리 종목코드(stk_cd) 필수인데 노드에 필드가 없던 불일치를 executor 구현 중 발견,
+  field_schema/i18n/입력포트/예제 스니펫까지 반영
+- finance `__init__.py`에 Kiwoom 최상위 export 추가 (`Kiwoom`, `kiwoom_*` 모듈 별칭,
+  `KiwoomReal` 등 — KIS 이름과 충돌하는 실시간 클래스는 `Kiwoom*` prefix로 별칭)
+- 워크플로우 예제 93-kiwoom-account / 94-kiwoom-market-data / 95-kiwoom-rsi-bot
+  (+.md) — deep_validate 3건 모두 통과, examples_validation 9건 통과
+- SDK 예제 `src/finance/example/kiwoom/` 4종 (quotations/balance/order_lifecycle/real_ccnl)
+- `docs/kiwoom_finance_guide.md` 신규, 00-workflow-guide 키움 섹션(스코프 표·출력 포트·멀티브로커) 추가
+- 테스트: deep_validate 키움 6건 신규 (fixture shape 3, no-real-api-call, 3사 멀티브로커,
+  account deep) — 전체 test_deep_validate 73 passed, core 키움 895 passed(스키마 완전성 포함)
+- 버전: finance 1.10.0→**1.11.0**, core 1.17.0→**1.18.0**, programgarden 1.27.0→**1.28.0**
+
+### 남은 것 (블로킹: 사용자 키움 app key 발급 대기)
+라이브 검증 전까지 `TODO(실계좌 검증)` 항목 유지 — 응답 필드명(잔고/현재가/일봉),
+trde_tp 코드값(지정가 0/시장가 3 추정), 전량취소 규칙, WebSocket 주소/메시지 구조,
+rate-limit 정책. 검증 시 blocks.py 필드명 교정만으로 대응 가능하도록 설계됨.
+
+---
+
 ## 2026-07-13 — 조건 플러그인 크로스 트리거 확대 (Phase 0/1) + MACD·MA Cross·WilliamsR 버그 수정 (feature/signal-cross-trigger)
 
 **작업자**: Claude (jwko76 요청 — TODO.md "조건 플러그인 크로스 트리거 확대" 진행)

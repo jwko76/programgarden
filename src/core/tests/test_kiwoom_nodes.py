@@ -175,6 +175,9 @@ class TestKiwoomFieldSchema:
     def test_cancel_order_fields(self):
         schema = KiwoomCancelOrderNode.get_field_schema()
         assert "original_order_no" in schema
+        # 키움 취소 api-id(kt10003)는 KIS와 달리 종목코드가 필수
+        assert "symbol" in schema
+        assert schema["symbol"].required is True
         assert "quantity" in schema
 
 

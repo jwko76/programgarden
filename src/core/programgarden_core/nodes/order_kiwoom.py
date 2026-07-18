@@ -335,7 +335,9 @@ class KiwoomCancelOrderNode(BaseNode):
     있습니다 — 이 노드는 KIS의 KisCancelOrderNode와 동일하게 취소
     전용 범위만 제공하며, 정정 노드는 MVP 범위 밖입니다.
 
-    ``original_order_no`` 필드에 취소할 주문번호를 바인딩하세요.
+    ``original_order_no`` 필드에 취소할 주문번호를, ``symbol`` 필드에
+    해당 주문의 종목코드를 바인딩하세요 — 키움 취소 TR은 KIS와 달리
+    종목코드(stk_cd)가 필수입니다.
 
     상위 KiwoomBrokerNode 연결 필수. (정정 기능은 미지원 — 취소 전용)
     """
@@ -371,6 +373,10 @@ class KiwoomCancelOrderNode(BaseNode):
     original_order_no: Any = Field(
         default=None,
         description="취소할 키움 주문번호",
+    )
+    symbol: Any = Field(
+        default=None,
+        description="취소할 주문의 종목코드 (6자리) — 키움 취소 api-id(kt10003)는 종목코드 필수",
     )
     quantity: Any = Field(
         default=None,
@@ -429,7 +435,8 @@ class KiwoomCancelOrderNode(BaseNode):
                     {"id": "order", "type": "KiwoomNewOrderNode", "side": "buy", "order_type": "limit",
                      "order": {"symbol": "005930", "quantity": "10", "price": "50000"}},
                     {"id": "cancel", "type": "KiwoomCancelOrderNode",
-                     "original_order_no": "{{ nodes.order.result.order_no }}"},
+                     "original_order_no": "{{ nodes.order.result.order_no }}",
+                     "symbol": "{{ nodes.order.result.symbol }}"},
                 ],
                 "edges": [
                     {"from": "start", "to": "broker"},
@@ -459,6 +466,7 @@ class KiwoomCancelOrderNode(BaseNode):
                      "order": {"symbol": "005930", "quantity": "10", "price": "50000"}},
                     {"id": "cancel", "type": "KiwoomCancelOrderNode",
                      "original_order_no": "{{ nodes.order.result.order_no }}",
+                     "symbol": "{{ nodes.order.result.symbol }}",
                      "quantity": "5"},
                 ],
                 "edges": [
@@ -478,7 +486,7 @@ class KiwoomCancelOrderNode(BaseNode):
         },
     ]
     _node_guide: ClassVar[Dict[str, Any]] = {
-        "input_handling": "original_order_no에 취소할 주문번호를 바인딩합니다. quantity 생략 시 전량 취소. 브로커 연결은 자동 주입됩니다.",
+        "input_handling": "original_order_no에 취소할 주문번호를, symbol에 해당 주문의 종목코드를 바인딩합니다 (키움 kt10003은 종목코드 필수 — KIS와 다름). quantity 생략 시 전량 취소. 브로커 연결은 자동 주입됩니다.",
         "output_consumption": "cancel_result(취소 접수 dict)와 cancelled_order_no(문자열)를 하위 노드에서 참조합니다.",
         "common_combinations": [
             "KiwoomNewOrderNode.result.order_no → KiwoomCancelOrderNode (조건부 취소)",
@@ -494,6 +502,7 @@ class KiwoomCancelOrderNode(BaseNode):
     _inputs: List[InputPort] = [
         InputPort(name="trigger", type="signal", description="i18n:ports.cancel_trigger"),
         InputPort(name="original_order_no", type="string", description="i18n:ports.original_order_id"),
+        InputPort(name="symbol", type="string", description="i18n:ports.symbol"),
     ]
     _outputs: List[OutputPort] = [
         OutputPort(
@@ -529,6 +538,19 @@ class KiwoomCancelOrderNode(BaseNode):
                 placeholder="{{ nodes.order.result.order_no }}",
                 example="0001234567",
                 example_binding="{{ nodes.order.result.order_no }}",
+                expected_type="str",
+            ),
+            "symbol": FieldSchema(
+                name="symbol",
+                type=FieldType.STRING,
+                description="i18n:fields.KiwoomCancelOrderNode.symbol",
+                required=True,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="{{ nodes.order.result.symbol }}",
+                example="005930",
+                example_binding="{{ nodes.order.result.symbol }}",
+                help_text="키움 취소 api-id(kt10003)는 KIS와 달리 종목코드가 필수입니다.",
                 expected_type="str",
             ),
             "quantity": FieldSchema(

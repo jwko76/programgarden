@@ -1379,7 +1379,7 @@
   "nodes.KiwoomHistoricalDataNode.name": "Kiwoom Daily Candles",
   "nodes.KiwoomNewOrderNode.description": "Places a Kiwoom domestic stock cash buy/sell order (buy api-id kt10000, sell api-id kt10001 — real vs. paper trading is selected by switching the broker's connection domain, not by swapping api-id). Configure side (buy/sell) and order_type (limit/market). Built-in 5-second rate limit and duplicate order prevention. Retry disabled by default. Requires an upstream KiwoomBrokerNode. Can be used as an AI Agent tool.",
   "nodes.KiwoomNewOrderNode.name": "Kiwoom New Order",
-  "nodes.KiwoomCancelOrderNode.description": "Cancels a pending Kiwoom order (cancel-only api-id kt10003 — Kiwoom splits modify (kt10002) and cancel into distinct api-ids, and this node covers cancel only). Bind the order number to cancel to the original_order_no field; omit quantity to cancel the full remaining amount. Outputs cancel_result and cancelled_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KiwoomBrokerNode.",
+  "nodes.KiwoomCancelOrderNode.description": "Cancels a pending Kiwoom order (cancel-only api-id kt10003 — Kiwoom splits modify (kt10002) and cancel into distinct api-ids, and this node covers cancel only). Bind the order number to cancel to the original_order_no field and the order's stock code to the symbol field (unlike KIS, Kiwoom's cancel requires the stock code); omit quantity to cancel the full remaining amount. Outputs cancel_result and cancelled_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KiwoomBrokerNode.",
   "nodes.KiwoomCancelOrderNode.name": "Kiwoom Cancel Order",
 
   "fields.KiwoomBrokerNode.credential_id": "Select Kiwoom credentials (broker_kiwoom type: appkey, appsecret, account_no)",
@@ -1392,6 +1392,7 @@
   "fields.KiwoomNewOrderNode.order": "Order info {symbol, quantity, price?}",
   "fieldNames.KiwoomNewOrderNode.order": "Order",
   "fields.KiwoomCancelOrderNode.original_order_no": "Kiwoom order number to cancel",
+  "fields.KiwoomCancelOrderNode.symbol": "Stock code of the order to cancel (6 digits) — required by Kiwoom's cancel api-id",
   "fields.KiwoomCancelOrderNode.quantity": "Quantity to cancel (omit for full remaining amount)",
 
   "enums.kiwoom_side.buy": "Buy",

@@ -13,9 +13,16 @@
   - 실시간 체결가(`run_real_ccnl.py`, H0STCNT0)는 주문 이슈와 무관하니 별도로 먼저 검증 가능
   - 완료 기준: REST 7종 + 실시간 전부 라이브 검증 → CLAUDE.md/WORKLOG 갱신
 
-## 다음 작업 후보
+## 보류 중
 
-- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제). 사용자 app key 발급 대기 중
+- [ ] **키움증권 실계좌(라이브) 검증** — 구현은 완료 (feature/kiwoom-broker, 아래 "완료됨" 참조), 사용자 app key 발급 대기 중
+  - 검증 대상: 소스의 `TODO(실계좌 검증)` 항목 전부 — 응답 필드명(잔고 kt00018/현재가 ka10001/일봉 ka10081),
+    주문 trde_tp 코드값(지정가 "0"/시장가 "3" 추정), 취소 전량 처리 규칙(ord_qty="0" 추정),
+    WebSocket 주소(`wss://api.kiwoom.com:10000` 추정)·메시지 구조, rate-limit 정책(초당 20건 차용)
+  - 검증 순서: 토큰 발급 → `run_quotations.py` → `run_balance.py` → (모의) `run_order_lifecycle.py` → `run_real_ccnl.py`
+  - 필드 불일치 발견 시 해당 blocks.py 필드명만 교정하면 되도록 설계됨
+
+## 다음 작업 후보
 - [ ] **조건 플러그인 크로스 트리거 확대 — Phase 2/3** (Phase 0/1은 완료, 아래 "완료됨" 참조)
   - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
   - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
@@ -28,6 +35,13 @@
 ---
 
 ## 완료됨
+
+- [x] **키움증권 브로커 전체 연동** (2026-07-18, feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
+  - finance SDK kiwoom/: TR 9종 + 실시간 2종 (도메인 전환식 실전/모의, POST 단일 바디, 토큰 파일캐시)
+  - core 노드 6종 (Kiwoom*) + BrokerProvider.KIWOOM + i18n + AI 메타데이터
+  - kiwoom_executors 6종 + deep fixtures — KiwoomCancelOrderNode symbol 필드 추가 (kt10003 종목코드 필수)
+  - 워크플로우 예제 93-95 (deep_validate 통과), SDK 예제 4종, docs/kiwoom_finance_guide.md
+  - 라이브 검증은 "보류 중" 참조 (app key 대기)
 
 - [x] **조건 플러그인 크로스 트리거 확대 — Phase 0/1** (2026-07-13, feature/signal-cross-trigger, community v1.15.0)
   - Phase 0 검증: aroon/coppock/trix/vortex/parabolic_sar/squeeze_momentum 정상.
