@@ -1367,5 +1367,36 @@
   "enums.kis_side.sell": "Sell",
   "enums.kis_order_type.limit": "Limit order",
   "enums.kis_order_type.market": "Market order",
-  "enums.broker_provider.koreainvestment.com": "Korea Investment & Securities"
+  "enums.broker_provider.koreainvestment.com": "Korea Investment & Securities",
+
+  "nodes.KiwoomBrokerNode.description": "Sets up a Kiwoom Securities OpenAPI connection for domestic Korean stocks. Acts as the authentication gateway — downstream account, market data, and order nodes automatically inherit the broker connection via DAG traversal. References broker_kiwoom credentials (appkey + appsecret + account_no) via credential_id. Set paper_trading=true to connect to the Kiwoom paper trading server (mockapi.kiwoom.com) — unlike KIS, Kiwoom does not switch tr_id for real vs. paper trading; it switches the entire connection domain instead. Can coexist with the LS KoreaStockBrokerNode and KIS KisBrokerNode in the same workflow (connections are separated per provider). Typical connection: StartNode → KiwoomBrokerNode → KiwoomAccountNode / KiwoomMarketDataNode / KiwoomNewOrderNode.",
+  "nodes.KiwoomBrokerNode.name": "Kiwoom Broker",
+  "nodes.KiwoomAccountNode.description": "Fetches Kiwoom stock holdings, deposits, and valuation as a one-time REST API snapshot (api-id kt00018, orderable amount kt00010). Outputs held_symbols (held symbol codes), balance (deposit, orderable cash, total valuation), and positions (per-symbol quantity, average buy price, profit/loss). Requires an upstream KiwoomBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KiwoomAccountNode.name": "Kiwoom Account",
+  "nodes.KiwoomMarketDataNode.description": "Fetches Kiwoom domestic stock current prices as a one-time REST API snapshot (api-id ka10001). Enter symbol codes comma-separated in the symbols field (e.g. 005930,000660). Unlike Bithumb's public API, Kiwoom quotes also require appkey authentication — an upstream KiwoomBrokerNode is required. Outputs values (current price, change rate, volume, PER/PBR per symbol). Can be used as an AI Agent tool.",
+  "nodes.KiwoomMarketDataNode.name": "Kiwoom Market Data",
+  "nodes.KiwoomHistoricalDataNode.description": "Fetches Kiwoom domestic stock daily OHLCV candles (api-id ka10081). The time_series output port returns [{symbol, exchange, time_series}] ready to connect directly to ConditionNode (RSI/BollingerBands). Candles are auto-sorted oldest-first for indicator plugins. Requires an upstream KiwoomBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KiwoomHistoricalDataNode.name": "Kiwoom Daily Candles",
+  "nodes.KiwoomNewOrderNode.description": "Places a Kiwoom domestic stock cash buy/sell order (buy api-id kt10000, sell api-id kt10001 — real vs. paper trading is selected by switching the broker's connection domain, not by swapping api-id). Configure side (buy/sell) and order_type (limit/market). Built-in 5-second rate limit and duplicate order prevention. Retry disabled by default. Requires an upstream KiwoomBrokerNode. Can be used as an AI Agent tool.",
+  "nodes.KiwoomNewOrderNode.name": "Kiwoom New Order",
+  "nodes.KiwoomCancelOrderNode.description": "Cancels a pending Kiwoom order (cancel-only api-id kt10003 — Kiwoom splits modify (kt10002) and cancel into distinct api-ids, and this node covers cancel only). Bind the order number to cancel to the original_order_no field; omit quantity to cancel the full remaining amount. Outputs cancel_result and cancelled_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KiwoomBrokerNode.",
+  "nodes.KiwoomCancelOrderNode.name": "Kiwoom Cancel Order",
+
+  "fields.KiwoomBrokerNode.credential_id": "Select Kiwoom credentials (broker_kiwoom type: appkey, appsecret, account_no)",
+  "fields.KiwoomBrokerNode.paper_trading": "Paper trading mode (true: paper server mockapi.kiwoom.com, false: live server api.kiwoom.com)",
+  "fields.KiwoomMarketDataNode.symbols": "Symbol codes (comma-separated 6-digit codes, e.g. 005930,000660)",
+  "fields.KiwoomHistoricalDataNode.symbol": "Symbol code (6-digit, e.g. 005930)",
+  "fields.KiwoomHistoricalDataNode.count": "Number of daily candles to fetch (1-100)",
+  "fields.KiwoomNewOrderNode.side": "Order side (buy / sell)",
+  "fields.KiwoomNewOrderNode.order_type": "Order type (limit: limit order, market: market order)",
+  "fields.KiwoomNewOrderNode.order": "Order info {symbol, quantity, price?}",
+  "fieldNames.KiwoomNewOrderNode.order": "Order",
+  "fields.KiwoomCancelOrderNode.original_order_no": "Kiwoom order number to cancel",
+  "fields.KiwoomCancelOrderNode.quantity": "Quantity to cancel (omit for full remaining amount)",
+
+  "enums.kiwoom_side.buy": "Buy",
+  "enums.kiwoom_side.sell": "Sell",
+  "enums.kiwoom_order_type.limit": "Limit order",
+  "enums.kiwoom_order_type.market": "Market order",
+  "enums.broker_provider.kiwoom.com": "Kiwoom Securities"
 }

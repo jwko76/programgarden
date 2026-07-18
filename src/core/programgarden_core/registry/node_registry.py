@@ -197,6 +197,10 @@ class NodeTypeRegistry:
             KisBrokerNode, KisAccountNode, KisMarketDataNode,
             KisHistoricalDataNode,
             KisNewOrderNode, KisCancelOrderNode,
+            # 키움 (키움증권 국내주식)
+            KiwoomBrokerNode, KiwoomAccountNode, KiwoomMarketDataNode,
+            KiwoomHistoricalDataNode,
+            KiwoomNewOrderNode, KiwoomCancelOrderNode,
         )
 
         node_classes = [
@@ -260,6 +264,10 @@ class NodeTypeRegistry:
             KisBrokerNode, KisAccountNode, KisMarketDataNode,
             KisHistoricalDataNode,
             KisNewOrderNode, KisCancelOrderNode,
+            # 키움 (키움증권 국내주식)
+            KiwoomBrokerNode, KiwoomAccountNode, KiwoomMarketDataNode,
+            KiwoomHistoricalDataNode,
+            KiwoomNewOrderNode, KiwoomCancelOrderNode,
         ]
 
         for node_class in node_classes:

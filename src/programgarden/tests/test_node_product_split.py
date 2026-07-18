@@ -167,6 +167,16 @@ class TestMultiBrokerCoexistence:
     }
     _LS_CRED = {"credential_id": "ls_cred", "type": "broker_ls_korea_stock", "data": []}
 
+    _KIWOOM_CRED = {
+        "credential_id": "kiwoom_cred",
+        "type": "broker_kiwoom",
+        "data": [
+            {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+            {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+            {"key": "account_no", "value": "", "type": "text", "label": "계좌번호"},
+        ],
+    }
+
     def test_ls_kis_korea_stock_coexist(self):
         """LS + KIS 국내주식 브로커 공존 → 검증 통과"""
         resolver = WorkflowResolver()
@@ -249,6 +259,96 @@ class TestMultiBrokerCoexistence:
                 {"from": "broker", "to": "market"},
             ],
             "credentials": [self._KIS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert result.is_valid, f"검증 실패: {result.errors}"
+
+    def test_duplicate_kiwoom_broker_error(self):
+        """같은 (scope, provider) 키움 브로커 2개 → 중복 에러"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-dup-kiwoom-broker",
+            "name": "키움 중복 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "broker1", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred"},
+                {"id": "broker2", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred"},
+            ],
+            "edges": [
+                {"from": "start", "to": "broker1"},
+                {"from": "start", "to": "broker2"},
+            ],
+            "credentials": [self._KIWOOM_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert not result.is_valid
+        assert any("Duplicate" in e.message for e in result.errors)
+
+    def test_kiwoom_node_with_only_ls_broker_error(self):
+        """키움 노드 + LS 브로커만 존재 → 프로바이더 불일치 에러"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-kiwoom-node-ls-broker",
+            "name": "프로바이더 불일치 테스트 (키움)",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "ls_broker", "type": "KoreaStockBrokerNode", "credential_id": "ls_cred"},
+                {"id": "kiwoom_account", "type": "KiwoomAccountNode"},
+            ],
+            "edges": [
+                {"from": "start", "to": "ls_broker"},
+                {"from": "ls_broker", "to": "kiwoom_account"},
+            ],
+            "credentials": [self._LS_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert not result.is_valid
+        assert any(e.code == "INCOMPATIBLE_BROKER_PROVIDER" for e in result.errors)
+
+    def test_kiwoom_only_korea_stock_valid(self):
+        """키움 브로커 단독 국내주식 워크플로우 → 검증 통과"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-kiwoom-only",
+            "name": "키움 단독 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "broker", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred", "paper_trading": True},
+                {"id": "market", "type": "KiwoomMarketDataNode", "symbols": "005930"},
+            ],
+            "edges": [
+                {"from": "start", "to": "broker"},
+                {"from": "broker", "to": "market"},
+            ],
+            "credentials": [self._KIWOOM_CRED],
+        }
+        result = resolver.validate(workflow)
+        assert result.is_valid, f"검증 실패: {result.errors}"
+
+    def test_ls_kis_kiwoom_three_way_coexist(self):
+        """LS + KIS + 키움 3사 국내주식 브로커 공존 → 검증 통과"""
+        resolver = WorkflowResolver()
+        workflow = {
+            "id": "test-three-way-broker-coexist",
+            "name": "LS+KIS+키움 3사 공존 테스트",
+            "nodes": [
+                {"id": "start", "type": "StartNode"},
+                {"id": "ls_broker", "type": "KoreaStockBrokerNode", "credential_id": "ls_cred"},
+                {"id": "kis_broker", "type": "KisBrokerNode", "credential_id": "kis_cred"},
+                {"id": "kiwoom_broker", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred"},
+                {"id": "ls_account", "type": "KoreaStockAccountNode"},
+                {"id": "kis_account", "type": "KisAccountNode"},
+                {"id": "kiwoom_account", "type": "KiwoomAccountNode"},
+            ],
+            "edges": [
+                {"from": "start", "to": "ls_broker"},
+                {"from": "start", "to": "kis_broker"},
+                {"from": "start", "to": "kiwoom_broker"},
+                {"from": "ls_broker", "to": "ls_account"},
+                {"from": "kis_broker", "to": "kis_account"},
+                {"from": "kiwoom_broker", "to": "kiwoom_account"},
+            ],
+            "credentials": [self._LS_CRED, self._KIS_CRED, self._KIWOOM_CRED],
         }
         result = resolver.validate(workflow)
         assert result.is_valid, f"검증 실패: {result.errors}"
