@@ -1,15 +1,15 @@
 # TODO
 
-## 보류 중
+## 진행 중
 
-- [ ] **KIS 실전 주문 라이브 검증 — APBK0919 오류로 블로킹 (2026-07-13 시도)**
-  - `run_order_lifecycle_live.py` 실행 → 토큰 발급/현재가 조회 정상, 매수 주문에서
+- [ ] **KIS 실전 주문 라이브 검증 — 재시도 대기 (다음 개장일 장중)**
+  - 2026-07-13 시도: `run_order_lifecycle_live.py` 실행 → 토큰 발급/현재가 조회 정상, 매수 주문에서
     `장운영일자가 주문일과 상이합니다 (APBK0919)` 거부 (주문 미접수, 취소 단계 미실행 — 계좌에 걸린 주문 없음)
   - 코드(`tr_helpers.py`/`order/__init__.py`) 헤더·계좌번호 채움 로직 정상 확인, 같은 계좌로 잔고·매수가능 조회는 7/11 기성공
   - 사용자 확인: 이 계좌로 HTS/MTS 수동 매매 이력 있음 → "API 최초 이용 라우팅 미활성화" 가설 배제
-  - **다음 단계(사용자 확인 필요)**: KIS 홈페이지/앱 [트레이딩]→[Open API]→[KIS Developers]에서
-    "오픈API 서비스 신청"(약관동의+계좌연결) 완료 여부 확인 — app key 발급과 별개 절차일 수 있음
-  - 재시도 시: `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py` (WSL)
+  - **2026-07-18: 사용자가 KIS 홈페이지/앱에서 "오픈API 서비스 신청"(약관동의+계좌연결) 완료** — 원인으로 지목했던
+    항목 해소, 다음 개장일 장중에 재시도 예정 (자동 예약은 보안/환경 제약으로 보류 — 장중에 사용자가 직접 요청)
+  - 재시도 명령: `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py` (WSL)
   - 실시간 체결가(`run_real_ccnl.py`, H0STCNT0)는 주문 이슈와 무관하니 별도로 먼저 검증 가능
   - 완료 기준: REST 7종 + 실시간 전부 라이브 검증 → CLAUDE.md/WORKLOG 갱신
 
