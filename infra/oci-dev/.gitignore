@@ -1,0 +1,10 @@
+# Copy this file to .gitignore in the project root.
+# Never commit credentials, keys, or Terraform state.
+terraform.tfvars
+*.pem
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log
+override.tf
+override.tf.json

@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-07-19 — OCI 개발서버 프로비저닝 (infra/oci-dev, Terraform)
+
+**작업자**: Claude (jwko76 요청 — 키움/빗썸 IP 화이트리스트가 OCI 운영서버 기준이라
+로컬 검증 불가 → 고정 IP를 가진 OCI 개발서버 신설)
+
+### 배경
+- 키움 8050(지정단말기)·빗썸 "not allowed client IP"는 로컬 PC IP가 미등록이라 발생 —
+  사용자가 등록한 IP는 MonitoringLSStock OCI 운영서버 공인 IP (해당 프로젝트 WORKLOG 7/18 확인)
+- MonitoringLSStock docs/DEPLOYMENT.md의 OCI 구축 절차 참고, 단 콘솔 수동 대신 **Terraform**으로 코드화
+
+### 프로비저닝 (oci-vm 스킬 + ~/.oci 기존 자격증명 재사용)
+- 테넌시 현황 실측: 홈 리전 ap-osaka-1 단일 구독, 기존 A1.Flex 1/6(운영)+E2.1.Micro 1대
+  → **Always Free A1 잔여 3 OCPU/18GB 확인**
+- `infra/oci-dev/`: VCN/서브넷/IGW/보안목록 + **A1.Flex 2 OCPU/12GB, Ubuntu 24.04(aarch64, Python 3.12)**
+  — Always Free 한도 내 ₩0. SSH ingress는 내 IP/32만 허용
+- **Reserved(고정) IP** 부여 — 브로커 화이트리스트 등록용, 인스턴스 재생성에도 유지
+  (Ubuntu 22.04→24.04 재생성으로 실증: IP 불변. 22.04는 Python 3.10이라 교체, 24.04 부트볼륨 50GB 필요로 -replace 사용)
+- 서버 구성: 코드 rsync(.git/.env 제외) + .env scp 이식(chmod 600, 내용 미열람) +
+  venv(core/finance editable + pytest 등)
+- **검증**: 서버에서 키움 모의 시세 전체(현재가/호가/일봉 600건) 라이브 통과 — 환경 배선 확인
+- 보안: tfvars/tfstate gitignore, OCID·IP는 로그 마스킹, 키 파일은 경로 참조만
+
+### 남은 것 (사용자 액션)
+개발서버 고정 IP를 키움 지정단말기·빗썸 허용 IP에 **추가** 등록 → 키움 실전/빗썸 검증 재개
+
+---
+
 ## 2026-07-18 (2) — 키움 모의서버 1차 라이브 검증 + 응답 필드 교정 (feature/kiwoom-broker)
 
 **작업자**: Claude (jwko76이 .env에 키움 app key 등록 — 키 값은 열람·표출하지 않고 검증만 수행)
