@@ -3,9 +3,12 @@ ProgramGarden Core - KIS Account Node
 
 한국투자증권 계좌 조회:
 - KisAccountNode: 주식 잔고·예수금 REST 1회 조회 (TTTC8434R/VTTC8434R)
+- KisOrderableAmountNode: 매수가능조회 (TTTC8908R/VTTC8908R)
 """
 
 from typing import Any, ClassVar, Dict, List, Literal, Optional, TYPE_CHECKING
+
+from pydantic import Field
 
 if TYPE_CHECKING:
     from programgarden_core.models.field_binding import FieldSchema
@@ -210,3 +213,200 @@ class KisAccountNode(BaseNode):
     @classmethod
     def get_field_schema(cls) -> Dict[str, "FieldSchema"]:
         return {}
+
+
+KIS_ORDERABLE_FIELDS: List[Dict[str, str]] = [
+    {"name": "symbol", "type": "string", "description": "종목코드 (6자리)"},
+    {"name": "orderable_cash", "type": "number", "description": "주문 가능 현금(원)"},
+    {"name": "max_buy_amount", "type": "number", "description": "최대 매수 가능 금액(원)"},
+    {"name": "max_buy_quantity", "type": "number", "description": "최대 매수 가능 수량"},
+    {"name": "nrcvb_buy_amount", "type": "number", "description": "미수 없는 매수 금액(원)"},
+    {"name": "nrcvb_buy_quantity", "type": "number", "description": "미수 없는 매수 수량"},
+    {"name": "calc_price", "type": "number", "description": "가능 수량 계산 단가(원)"},
+]
+
+
+class KisOrderableAmountNode(BaseNode):
+    """
+    한국투자증권 매수가능조회 노드
+
+    KIS 매수가능조회 TR(실전 TTTC8908R / 모의 VTTC8908R)로 특정 종목을
+    지정가/시장가로 살 때의 주문 가능 현금·최대 매수 수량을 조회합니다.
+    주문 수량 산정(포지션 사이징)의 입력으로 사용합니다.
+
+    상위 KisBrokerNode 연결 필수.
+    """
+
+    type: Literal["KisOrderableAmountNode"] = "KisOrderableAmountNode"
+    category: NodeCategory = NodeCategory.ACCOUNT
+    description: str = "i18n:nodes.KisOrderableAmountNode.description"
+    _img_url: ClassVar[str] = ""
+    _product_scope: ClassVar[ProductScope] = ProductScope.KOREA_STOCK
+    _broker_provider: ClassVar[BrokerProvider] = BrokerProvider.KIS
+
+    symbol: Any = Field(
+        default=None,
+        description="매수 가능 금액을 계산할 종목코드 (6자리)",
+    )
+    price: Any = Field(
+        default=None,
+        description="계산 기준 지정가 (생략 시 시장가 기준)",
+    )
+
+    _usage: ClassVar[Dict[str, Any]] = {
+        "when_to_use": [
+            "매수 주문 전 최대 매수 가능 수량 산정 (포지션 사이징)",
+            "특정 종목·가격 기준의 주문 가능 현금 확인",
+        ],
+        "when_not_to_use": [
+            "계좌 전체 잔고·보유 종목 조회 — KisAccountNode 사용",
+            "매도 가능 수량 확인 — KisAccountNode.positions의 orderable_quantity 사용",
+        ],
+        "typical_scenarios": [
+            "KisOrderableAmountNode.orderable.max_buy_quantity → KisNewOrderNode.order.quantity (전량 매수)",
+        ],
+    }
+    _features: ClassVar[List[str]] = [
+        "종목·가격 기준 최대 매수 가능 수량/금액 계산 (미수 미포함 값 포함)",
+        "price 생략 시 시장가(ORD_DVSN=01) 기준으로 계산",
+        "브로커 paper_trading에 따라 실전/모의 TR(TTTC8908R/VTTC8908R) 자동 선택",
+        "is_tool_enabled=True — AI Agent 포지션 사이징 도구로 사용 가능",
+    ]
+    _anti_patterns: ClassVar[List[Dict[str, str]]] = [
+        {
+            "pattern": "max_buy_quantity 전량을 그대로 주문 수량으로 사용",
+            "reason": "조회와 주문 사이 가격 변동으로 주문이 거부될 수 있습니다.",
+            "alternative": "여유율을 두거나(예: 90%) 미수 없는 수량(nrcvb_buy_quantity)을 사용하세요.",
+        },
+        {
+            "pattern": "실시간 노드에 직결해 틱마다 조회",
+            "reason": "REST 1회성 조회 노드이며 KIS rate-limit을 소진합니다.",
+            "alternative": "ThrottleNode 또는 ScheduleNode로 주기를 제한하세요.",
+        },
+    ]
+    _examples: ClassVar[List[Dict[str, Any]]] = [
+        {
+            "title": "가능 수량 기반 매수 (포지션 사이징)",
+            "description": "삼성전자를 60,000원에 살 때 미수 없이 가능한 수량을 조회해 그대로 매수합니다.",
+            "workflow_snippet": {
+                "id": "kis-orderable-sizing",
+                "name": "KIS 가능수량 매수",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+                    {"id": "orderable", "type": "KisOrderableAmountNode", "symbol": "005930", "price": "60000"},
+                    {"id": "gate", "type": "IfNode", "condition": "{{ nodes.orderable.orderable.nrcvb_buy_quantity >= 1 }}"},
+                    {"id": "order", "type": "KisNewOrderNode", "side": "buy", "order_type": "limit",
+                     "order": {"symbol": "005930", "quantity": "{{ nodes.orderable.orderable.nrcvb_buy_quantity }}", "price": "60000"}},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "orderable"},
+                    {"from": "orderable", "to": "gate"},
+                    {"from": "gate", "to": "order", "condition": "true"},
+                ],
+                "credentials": [
+                    {"credential_id": "kis_cred", "type": "broker_kis", "data": [
+                        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 8자리"},
+                        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드"},
+                    ]},
+                ],
+            },
+            "expected_output": "orderable 포트에 {orderable_cash, max_buy_quantity, nrcvb_buy_quantity, ...}가 반환되고 가능 수량만큼 매수 주문이 나갑니다.",
+        },
+        {
+            "title": "시장가 기준 가능 금액 표시",
+            "description": "가격을 생략해 시장가 기준 매수 가능 정보를 조회해 표시합니다.",
+            "workflow_snippet": {
+                "id": "kis-orderable-display",
+                "name": "KIS 매수가능 확인",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+                    {"id": "orderable", "type": "KisOrderableAmountNode", "symbol": "005930"},
+                    {"id": "display", "type": "SummaryDisplayNode", "title": "매수가능", "data": "{{ nodes.orderable.orderable }}"},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "orderable"},
+                    {"from": "orderable", "to": "display"},
+                ],
+                "credentials": [
+                    {"credential_id": "kis_cred", "type": "broker_kis", "data": [
+                        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 8자리"},
+                        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드"},
+                    ]},
+                ],
+            },
+            "expected_output": "orderable 포트의 주문가능현금·최대매수수량이 요약 표시됩니다.",
+        },
+    ]
+    _node_guide: ClassVar[Dict[str, Any]] = {
+        "input_handling": "symbol(6자리 종목코드)을 설정하고, 지정가 기준 계산이 필요하면 price를 입력합니다 (생략 시 시장가 기준). 브로커 연결은 자동 주입됩니다.",
+        "output_consumption": "orderable.max_buy_quantity/nrcvb_buy_quantity를 KisNewOrderNode.order.quantity에 바인딩해 포지션 사이징에 사용합니다.",
+        "common_combinations": [
+            "KisOrderableAmountNode → IfNode → KisNewOrderNode (가능 수량 게이트 매수)",
+            "ConditionNode(RSI) → KisOrderableAmountNode → KisNewOrderNode (시그널 기반 사이징)",
+        ],
+        "pitfalls": [
+            "매수 전용 TR — 매도 가능 수량은 KisAccountNode.positions에서 확인",
+            "조회 시점과 주문 시점의 가격 차이로 실제 체결 가능 수량은 달라질 수 있음",
+            "모의투자 계좌 기준 값은 실계좌와 다름",
+        ],
+    }
+
+    @classmethod
+    def is_tool_enabled(cls) -> bool:
+        return True
+
+    _inputs: List[InputPort] = [
+        InputPort(name="trigger", type="signal", description="i18n:ports.trigger", required=False),
+    ]
+    _outputs: List[OutputPort] = [
+        OutputPort(
+            name="orderable",
+            type="balance_data",
+            description="i18n:ports.orderable_amount",
+            fields=KIS_ORDERABLE_FIELDS,
+        ),
+    ]
+
+    _version: ClassVar[str] = "1.0.0"
+    _updated_at: ClassVar[str] = "2026-07-19"
+    _change_note: ClassVar[Optional[str]] = None
+
+    @classmethod
+    def get_field_schema(cls) -> Dict[str, "FieldSchema"]:
+        from programgarden_core.models.field_binding import (
+            FieldSchema, FieldType, FieldCategory, ExpressionMode
+        )
+        return {
+            "symbol": FieldSchema(
+                name="symbol",
+                type=FieldType.STRING,
+                description="i18n:fields.KisOrderableAmountNode.symbol",
+                required=True,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="005930",
+                example="005930",
+                example_binding="{{ nodes.rsi.passed_symbols[0].symbol }}",
+                expected_type="str",
+            ),
+            "price": FieldSchema(
+                name="price",
+                type=FieldType.STRING,
+                description="i18n:fields.KisOrderableAmountNode.price",
+                required=False,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="60000",
+                example="60000",
+                help_text="지정가 기준 계산 단가(원). 생략하면 시장가 기준으로 계산합니다.",
+                expected_type="str",
+            ),
+        }

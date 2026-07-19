@@ -29,17 +29,43 @@ class Kis(metaclass=EnforceKoreanAliasMeta):
     # 인스턴스 id → KisReal 싱글톤 캐시
     _real_instances: Dict[int, "KisReal"] = {}  # type: ignore[name-defined]
 
-    def __init__(self, paper_trading: bool = False, use_token_file_cache: bool = True):
+    def __init__(
+        self,
+        paper_trading: bool = False,
+        use_token_file_cache: bool = True,
+        use_hashkey: bool = False,
+        token_provider=None,
+        async_token_provider=None,
+    ):
+        """
+        Parameters:
+            paper_trading: True면 모의투자 서버 접속 (TR ID TTTC↔VTTC 자동 분기).
+            use_token_file_cache: 토큰 파일 캐시 사용 여부.
+            use_hashkey: True면 POST 주문 TR에 /uapi/hashkey 해시 헤더 자동 첨부 (위변조 방지).
+            token_provider: LS식 consumer 모드 — ``() -> (access_token, expires_at_epoch)``
+                콜백. 설정 시 이 클라이언트는 토큰을 자체 발급하지 않고 소비만 하며
+                appsecret 없이도 동작합니다 (파일 캐시 자동 비활성).
+            async_token_provider: 위와 동일한 비동기 콜백.
+        """
         self.paper_trading = paper_trading
         self.token_manager = KisTokenManager(
             paper_trading=paper_trading,
             use_file_cache=use_token_file_cache,
+            use_hashkey=use_hashkey,
+            token_provider=token_provider,
+            async_token_provider=async_token_provider,
         )
         self.account_no: Optional[str] = None
         self.account_product_code: str = "01"
 
     def is_logged_in(self) -> bool:
-        """appkey/appsecret이 등록되어 있는지 확인합니다."""
+        """appkey/appsecret이 등록되어 있는지 확인합니다.
+
+        token-provider 모드여도 KIS는 모든 TR 헤더에 appkey/appsecret을
+        요구하므로(LS와 다름) 두 값은 항상 필요합니다 — provider는
+        **토큰 발급만** 위임합니다 (재발급 분당 1회 + 재발급 시 기존 토큰
+        무효화 제약 때문에 다중 프로세스는 단일 발급자가 필수).
+        """
         return bool(self.token_manager.appkey and self.token_manager.appsecret)
 
     @require_korean_alias

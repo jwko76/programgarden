@@ -38,6 +38,10 @@ _TR_MODEL_MAP: Dict[str, tuple] = {
         "programgarden_finance.kis.real.ccnl.blocks",
         "CcnlRealResponse",
     ),
+    "H0STASP0": (
+        "programgarden_finance.kis.real.asking_price.blocks",
+        "AskingPriceRealResponse",
+    ),
     "H0STCNI0": (
         "programgarden_finance.kis.real.order_notice.blocks",
         "OrderNoticeRealResponse",

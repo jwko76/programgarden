@@ -102,3 +102,20 @@ class TestInquirePsblOrderMock:
         assert req.headers["tr_id"] == "VTTC8908R"
         assert req.qs["cano"] == ["12345678"]  # 빈 값 → 자동 채움
         assert req.qs["pdno"] == ["005930"]
+
+    def test_market_price_defaults(self, kis, requests_mock):
+        """가격 미지정(0) 시 시장가 기준(ORD_DVSN=01)으로 조회됩니다."""
+        requests_mock.get(
+            PSBL_URL,
+            json={
+                "rt_cd": "0", "msg_cd": "MCA00000", "msg1": "OK",
+                "output": {"ord_psbl_cash": "5000000", "max_buy_qty": "50"},
+            },
+        )
+        kis.accno().inquire_psbl_order(
+            InquirePsblOrderInBlock(cano="", pdno="005930")
+        ).req()
+
+        req = requests_mock.last_request
+        assert req.qs["ord_dvsn"] == ["01"]
+        assert req.qs["ord_unpr"] == ["0"]

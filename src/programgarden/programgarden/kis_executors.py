@@ -2,7 +2,8 @@
 
 KisBrokerNodeExecutor, KisAccountNodeExecutor, KisMarketDataNodeExecutor,
 KisHistoricalDataNodeExecutor, KisNewOrderNodeExecutor,
-KisCancelOrderNodeExecutor — 각각 KIS Developers OpenAPI를 직접 호출합니다.
+KisCancelOrderNodeExecutor, KisModifyOrderNodeExecutor,
+KisOrderableAmountNodeExecutor — 각각 KIS Developers OpenAPI를 직접 호출합니다.
 
 빗썸 executor와의 주요 차이:
 - OAuth 접근토큰 방식 (24h 유효, 파일 캐시) — 클라이언트 생성 시 토큰 지연 발급
@@ -197,7 +198,8 @@ class KisAccountNodeExecutor(_KisExecutorBase):
 
         try:
             kis = _make_kis_client(appkey, appsecret, account_no, account_product_code, paper_trading)
-            resp = kis.accno().inquire_balance().req()
+            # 보유 종목이 한 페이지(약 50건)를 넘으면 tr_cont 연속조회로 전체 수집
+            resp = kis.accno().inquire_balance().req_all()
 
             if resp.error_msg:
                 context.log("error", f"KisAccountNode: {resp.error_msg}", node_id)
@@ -555,6 +557,93 @@ class KisNewOrderNodeExecutor(_KisExecutorBase):
             return _error(str(exc))
 
 
+# ────────────────────────────── KisOrderableAmountNodeExecutor ──
+
+
+class KisOrderableAmountNodeExecutor(_KisExecutorBase):
+    """KisOrderableAmountNode executor — 매수가능조회 (TTTC8908R/VTTC8908R)."""
+
+    async def execute(
+        self,
+        node_id: str,
+        node_type: str,
+        config: Dict[str, Any],
+        context,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        if context.is_deep_validate or context.is_dry_run:
+            from programgarden import deep_fixtures as _df
+            config = _evaluate_all_bindings(config, context, node_id)
+            fixture = _df.kis_orderable_fixture(config.get("symbol", "005930"))
+            if context.is_deep_validate:
+                return _df.apply_override(fixture, context.get_deep_fixture(node_id, node_type))
+            return fixture
+
+        connection = config.get("connection")
+        if not connection:
+            context.log("error", "KisOrderableAmountNode: KisBrokerNode 연결이 없습니다.", node_id)
+            return _error("Missing connection")
+
+        appkey, appsecret, account_no, account_product_code, paper_trading = _get_kis_connection(connection)
+        if not appkey or not appsecret:
+            return _error("Missing KIS credentials")
+        if not account_no:
+            return _error("Missing KIS account_no")
+
+        config = _evaluate_all_bindings(config, context, node_id)
+        symbol = str(config.get("symbol") or "").strip().upper()
+        price = str(config.get("price") or "").strip()
+
+        # 입력 검증 (시큐어 코딩 §1.3)
+        if not symbol or not _SYMBOL_RE.match(symbol):
+            context.log("error", f"KisOrderableAmountNode: 잘못된 종목코드 '{symbol}'", node_id)
+            return _error(f"Invalid symbol: {symbol}")
+
+        # 지정가 기준(00) / 시장가 기준(01)
+        if price and _to_float(price) > 0:
+            ord_dvsn, ord_unpr = "00", price
+        else:
+            ord_dvsn, ord_unpr = "01", "0"
+
+        try:
+            from programgarden_finance.kis.accno.inquire_psbl_order.blocks import InquirePsblOrderInBlock
+
+            kis = _make_kis_client(appkey, appsecret, account_no, account_product_code, paper_trading)
+            resp = kis.accno().inquire_psbl_order(
+                InquirePsblOrderInBlock(
+                    cano="",  # 클라이언트 등록 계좌 자동 사용
+                    pdno=symbol,
+                    ord_unpr=ord_unpr,
+                    ord_dvsn=ord_dvsn,
+                )
+            ).req()
+
+            if resp.error_msg:
+                context.log("error", f"KisOrderableAmountNode: {resp.error_msg}", node_id)
+                return _error(resp.error_msg)
+
+            blk = resp.block
+            orderable = {
+                "symbol": symbol,
+                "orderable_cash": _to_float(getattr(blk, "ord_psbl_cash", None)),
+                "max_buy_amount": _to_float(getattr(blk, "max_buy_amt", None)),
+                "max_buy_quantity": _to_float(getattr(blk, "max_buy_qty", None)),
+                "nrcvb_buy_amount": _to_float(getattr(blk, "nrcvb_buy_amt", None)),
+                "nrcvb_buy_quantity": _to_float(getattr(blk, "nrcvb_buy_qty", None)),
+                "calc_price": _to_float(getattr(blk, "psbl_qty_calc_unpr", None)),
+            }
+            context.log(
+                "info",
+                f"KisOrderableAmountNode: {symbol} 최대 {orderable['max_buy_quantity']:,.0f}주 매수 가능",
+                node_id,
+            )
+            return {"orderable": orderable}
+
+        except Exception as exc:
+            context.log("error", f"KisOrderableAmountNode 실패: {exc}", node_id)
+            return _error(str(exc))
+
+
 # ────────────────────────────────── KisCancelOrderNodeExecutor ──
 
 
@@ -634,4 +723,113 @@ class KisCancelOrderNodeExecutor(_KisExecutorBase):
 
         except Exception as exc:
             context.log("error", f"KisCancelOrderNode 실패: {exc}", node_id)
+            return _error(str(exc))
+
+
+# ────────────────────────────────── KisModifyOrderNodeExecutor ──
+
+
+class KisModifyOrderNodeExecutor(_KisExecutorBase):
+    """KisModifyOrderNode executor — 주식주문(정정취소)로 정정 실행 (RVSE_CNCL_DVSN_CD=01)."""
+
+    async def execute(
+        self,
+        node_id: str,
+        node_type: str,
+        config: Dict[str, Any],
+        context,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        if context.is_dry_run:
+            original = config.get("original_order_no", "UNKNOWN")
+            order_no = f"DRYRUN-{uuid.uuid4()}"
+            context.log("info", f"[dry_run] KisModifyOrderNode {original} → {order_no}", node_id)
+            return {
+                "result": {"order_no": order_no, "status": "simulated_modify", "dry_run": True},
+                "modified_order_no": order_no,
+            }
+
+        if context.is_risk_halted:
+            context.log("warning", "KisModifyOrderNode: risk_halt 상태 — 정정 중단", node_id)
+            return _error("Order halted by risk event")
+
+        connection = config.get("connection")
+        if not connection:
+            context.log("error", "KisModifyOrderNode: KisBrokerNode 연결 없음", node_id)
+            return _error("Missing connection")
+
+        appkey, appsecret, account_no, account_product_code, paper_trading = _get_kis_connection(connection)
+        if not appkey or not appsecret:
+            return _error("Missing KIS credentials")
+        if not account_no:
+            return _error("Missing KIS account_no")
+
+        config = _evaluate_all_bindings(config, context, node_id)
+        original_order_no = str(config.get("original_order_no") or "").strip()
+        order_type = config.get("order_type", "limit")
+        price = str(config.get("price") or "").strip()
+        quantity = str(config.get("quantity") or "").strip()
+
+        if not original_order_no:
+            context.log("error", "KisModifyOrderNode: original_order_no 없음", node_id)
+            return _error("Missing original_order_no")
+
+        # 주문구분: 00 지정가(가격 필수), 01 시장가(가격 0)
+        if order_type == "market":
+            ord_dvsn, ord_unpr = "01", "0"
+        else:
+            if not price or _to_float(price) <= 0:
+                context.log("error", "KisModifyOrderNode: 지정가 정정에 price가 필요합니다", node_id)
+                return _error("Missing price for limit modification")
+            ord_dvsn, ord_unpr = "00", price
+
+        # 수량 지정 시 일부 정정, 미지정 시 잔량 전부 정정
+        if quantity and quantity.isdigit() and int(quantity) > 0:
+            ord_qty, qty_all = quantity, "N"
+        else:
+            ord_qty, qty_all = "0", "Y"
+
+        context.log(
+            "info",
+            f"KisModifyOrderNode: 주문 정정 {original_order_no} → {order_type} price={ord_unpr} qty={ord_qty or '전량'}",
+            node_id,
+        )
+
+        try:
+            from programgarden_finance.kis.order.order_rvsecncl.blocks import OrderRvsecnclBodyBlock
+
+            kis = _make_kis_client(appkey, appsecret, account_no, account_product_code, paper_trading)
+            resp = kis.order().order_rvsecncl(
+                OrderRvsecnclBodyBlock(
+                    cano="",
+                    orgn_odno=original_order_no,
+                    ord_dvsn=ord_dvsn,
+                    rvse_cncl_dvsn_cd="01",  # 정정
+                    ord_qty=ord_qty,
+                    ord_unpr=ord_unpr,
+                    qty_all_ord_yn=qty_all,
+                )
+            ).req()
+
+            if resp.error_msg:
+                context.log("error", f"KisModifyOrderNode: {resp.error_msg}", node_id)
+                return _error(resp.error_msg)
+
+            blk = resp.block
+            modified_order_no = getattr(blk, "odno", None) or original_order_no
+            result = {
+                "order_no": modified_order_no,
+                "original_order_no": original_order_no,
+                "order_type": order_type,
+                "quantity": _to_float(ord_qty),
+                "price": _to_float(ord_unpr),
+                "order_time": getattr(blk, "ord_tmd", None),
+                "status": "modified",
+                "paper_trading": paper_trading,
+            }
+            context.log("info", f"KisModifyOrderNode: 정정 접수 완료 {original_order_no} → {modified_order_no}", node_id)
+            return {"result": result, "modified_order_no": modified_order_no}
+
+        except Exception as exc:
+            context.log("error", f"KisModifyOrderNode 실패: {exc}", node_id)
             return _error(str(exc))

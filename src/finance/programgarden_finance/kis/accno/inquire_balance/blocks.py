@@ -80,3 +80,5 @@ class InquireBalanceResponse(KisResponseBase):
 
     blocks: Optional[List[InquireBalanceOutBlock1]] = Field(default=None, description="보유 종목 목록 (output1)")
     block2: Optional[InquireBalanceOutBlock2] = Field(default=None, description="계좌 요약 (output2)")
+    ctx_area_fk100: Optional[str] = Field(default=None, description="연속조회검색조건100 (다음 페이지 요청에 사용)")
+    ctx_area_nk100: Optional[str] = Field(default=None, description="연속조회키100 (다음 페이지 요청에 사용)")

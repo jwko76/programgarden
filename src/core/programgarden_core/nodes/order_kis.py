@@ -3,7 +3,8 @@ ProgramGarden Core - KIS Order Nodes
 
 한국투자증권 주문 노드:
 - KisNewOrderNode: 현금 신규 주문 (TTTC0802U 매수 / TTTC0801U 매도, 모의 VTTC…)
-- KisCancelOrderNode: 주문 취소 (TTTC0803U / VTTC0803U)
+- KisCancelOrderNode: 주문 취소 (TTTC0803U / VTTC0803U, RVSE_CNCL_DVSN_CD=02)
+- KisModifyOrderNode: 주문 정정 (TTTC0803U / VTTC0803U, RVSE_CNCL_DVSN_CD=01)
 """
 
 import logging
@@ -383,7 +384,7 @@ class KisCancelOrderNode(BaseNode):
         ],
         "when_not_to_use": [
             "이미 체결된 주문 — 취소 불가",
-            "주문 수량·가격 변경 — 정정은 미지원, 취소 후 재주문하세요",
+            "주문 수량·가격 변경 — KisModifyOrderNode(정정)를 사용하세요",
         ],
         "typical_scenarios": [
             "KisNewOrderNode.result.order_no → KisCancelOrderNode (조건부 취소)",
@@ -402,9 +403,9 @@ class KisCancelOrderNode(BaseNode):
             "alternative": "취소 전 미체결 여부를 확인하거나 fallback.mode='skip'으로 설정하세요.",
         },
         {
-            "pattern": "주문 정정 용도로 취소-재주문 없이 사용",
-            "reason": "이 노드는 취소 전용입니다 (정정 미지원).",
-            "alternative": "취소 후 KisNewOrderNode로 재주문하세요.",
+            "pattern": "주문 정정 용도로 사용",
+            "reason": "이 노드는 취소 전용입니다.",
+            "alternative": "가격·수량 변경은 KisModifyOrderNode(정정)를 사용하세요.",
         },
     ]
     _examples: ClassVar[List[Dict[str, Any]]] = [
@@ -534,6 +535,267 @@ class KisCancelOrderNode(BaseNode):
                 placeholder="10",
                 example="10",
                 help_text="취소할 수량. 생략하면 잔량 전부를 취소합니다.",
+                expected_type="str",
+            ),
+        }
+
+
+class KisModifyOrderNode(BaseNode):
+    """
+    한국투자증권 주문 정정 노드
+
+    KIS 주식주문(정정취소) TR(실전 TTTC0803U / 모의 VTTC0803U,
+    RVSE_CNCL_DVSN_CD=01)로 미체결 주문의 가격·수량을 정정합니다.
+    ``original_order_no`` 필드에 정정할 주문번호(ODNO)를,
+    ``price`` 에 새 지정가를 바인딩하세요.
+
+    상위 KisBrokerNode 연결 필수.
+    """
+
+    type: Literal["KisModifyOrderNode"] = "KisModifyOrderNode"
+    category: NodeCategory = NodeCategory.ORDER
+    description: str = "i18n:nodes.KisModifyOrderNode.description"
+    _img_url: ClassVar[str] = ""
+    _product_scope: ClassVar[ProductScope] = ProductScope.KOREA_STOCK
+    _broker_provider: ClassVar[BrokerProvider] = BrokerProvider.KIS
+
+    _connection_rules: ClassVar[List[ConnectionRule]] = [
+        ConnectionRule(
+            deny_direct_from=REALTIME_SOURCE_NODE_TYPES,
+            required_intermediate="ThrottleNode",
+            severity=ConnectionSeverity.ERROR,
+            reason="i18n:connection_rules.realtime_to_order.reason",
+            suggestion="i18n:connection_rules.realtime_to_order.suggestion",
+        ),
+    ]
+
+    _rate_limit: ClassVar[Optional[RateLimitConfig]] = RateLimitConfig(
+        min_interval_sec=5,
+        max_concurrent=1,
+        on_throttle="skip",
+    )
+
+    connection: Optional[Dict] = Field(
+        default=None,
+        description="KIS 연결 정보 (KisBrokerNode.connection 바인딩)",
+    )
+
+    original_order_no: Any = Field(
+        default=None,
+        description="정정할 KIS 주문번호 (ODNO)",
+    )
+    order_type: Literal["limit", "market"] = Field(
+        default="limit",
+        description="정정 주문 방식 (limit: 지정가, market: 시장가)",
+    )
+    price: Any = Field(
+        default=None,
+        description="정정할 새 지정가 (limit 필수, market 생략)",
+    )
+    quantity: Any = Field(
+        default=None,
+        description="정정 수량 (생략 시 잔량 전부 정정)",
+    )
+
+    resilience: ResilienceConfig = Field(
+        default_factory=lambda: ResilienceConfig(
+            retry=RetryConfig(enabled=False, retry_on=[RetryableError.NETWORK_ERROR]),
+            fallback=FallbackConfig(mode=FallbackMode.ERROR),
+        ),
+        description="재시도 설정 (기본 비활성)",
+    )
+
+    _usage: ClassVar[Dict[str, Any]] = {
+        "when_to_use": [
+            "미체결 지정가 주문의 가격 정정 (호가 추적)",
+            "미체결 주문 수량 일부 정정",
+        ],
+        "when_not_to_use": [
+            "이미 체결된 주문 — 정정 불가",
+            "주문 전량 철회 — KisCancelOrderNode 사용",
+        ],
+        "typical_scenarios": [
+            "KisNewOrderNode.result.order_no → IfNode(미체결) → KisModifyOrderNode (가격 재설정)",
+        ],
+    }
+    _features: ClassVar[List[str]] = [
+        "브로커 paper_trading에 따라 실전/모의 tr_id 자동 전환 (TTTC0803U↔VTTC0803U)",
+        "quantity 생략 시 잔량 전부 정정 (QTY_ALL_ORD_YN=Y)",
+        "limit(지정가)·market(시장가) 정정 지원",
+        "기본 재시도 비활성 — 중복 정정 방지",
+        "rate-limit: 최소 5초 간격, 동시 실행 1개",
+    ]
+    _anti_patterns: ClassVar[List[Dict[str, str]]] = [
+        {
+            "pattern": "체결 완료된 주문을 정정 시도",
+            "reason": "KIS가 rt_cd != 0 에러를 반환하며, fallback.mode=error(기본)면 워크플로우가 중단됩니다.",
+            "alternative": "정정 전 미체결 여부를 확인하거나 fallback.mode='skip'으로 설정하세요.",
+        },
+        {
+            "pattern": "실시간 노드를 ThrottleNode 없이 직접 연결",
+            "reason": "틱마다 정정이 발생하여 API rate-limit이 소진됩니다.",
+            "alternative": "실시간 소스와 정정 노드 사이에 ThrottleNode를 삽입하세요.",
+        },
+    ]
+    _examples: ClassVar[List[Dict[str, Any]]] = [
+        {
+            "title": "미체결 주문 가격 정정",
+            "description": "모의투자에서 지정가 매수 주문을 넣고 더 높은 가격으로 정정합니다.",
+            "workflow_snippet": {
+                "id": "kis-modify-price",
+                "name": "KIS 주문 가격 정정",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+                    {"id": "order", "type": "KisNewOrderNode", "side": "buy", "order_type": "limit",
+                     "order": {"symbol": "005930", "quantity": "10", "price": "50000"}},
+                    {"id": "modify", "type": "KisModifyOrderNode",
+                     "original_order_no": "{{ nodes.order.result.order_no }}",
+                     "order_type": "limit",
+                     "price": "51000"},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "order"},
+                    {"from": "order", "to": "modify"},
+                ],
+                "credentials": [
+                    {"credential_id": "kis_cred", "type": "broker_kis", "data": [
+                        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 8자리"},
+                        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드"},
+                    ]},
+                ],
+            },
+            "expected_output": "result에 정정 접수 결과, modified_order_no에 정정 접수 주문번호가 반환됩니다.",
+        },
+        {
+            "title": "일부 수량만 정정",
+            "description": "미체결 10주 중 5주만 새 가격으로 정정합니다.",
+            "workflow_snippet": {
+                "id": "kis-modify-partial",
+                "name": "KIS 부분 정정",
+                "nodes": [
+                    {"id": "start", "type": "StartNode"},
+                    {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+                    {"id": "order", "type": "KisNewOrderNode", "side": "buy", "order_type": "limit",
+                     "order": {"symbol": "005930", "quantity": "10", "price": "50000"}},
+                    {"id": "modify", "type": "KisModifyOrderNode",
+                     "original_order_no": "{{ nodes.order.result.order_no }}",
+                     "order_type": "limit",
+                     "price": "50500",
+                     "quantity": "5"},
+                ],
+                "edges": [
+                    {"from": "start", "to": "broker"},
+                    {"from": "broker", "to": "order"},
+                    {"from": "order", "to": "modify"},
+                ],
+                "credentials": [
+                    {"credential_id": "kis_cred", "type": "broker_kis", "data": [
+                        {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                        {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                        {"key": "account_no", "value": "", "type": "text", "label": "계좌번호 8자리"},
+                        {"key": "account_product_code", "value": "01", "type": "text", "label": "계좌상품코드"},
+                    ]},
+                ],
+            },
+            "expected_output": "5주가 50,500원으로 정정되고 나머지 5주는 원래 가격으로 유지됩니다.",
+        },
+    ]
+    _node_guide: ClassVar[Dict[str, Any]] = {
+        "input_handling": "original_order_no에 정정할 주문번호(ODNO)를, price에 새 지정가를 바인딩합니다. quantity 생략 시 잔량 전부 정정. 브로커 연결은 자동 주입됩니다.",
+        "output_consumption": "result(정정 접수 dict)와 modified_order_no(문자열 — 정정 후 새 주문번호)를 하위 노드에서 참조합니다. 정정 후 취소하려면 modified_order_no를 KisCancelOrderNode에 바인딩하세요.",
+        "common_combinations": [
+            "KisNewOrderNode.result.order_no → KisModifyOrderNode (가격 추적 정정)",
+            "KisModifyOrderNode.modified_order_no → KisCancelOrderNode (정정 후 취소)",
+        ],
+        "pitfalls": [
+            "정정 후에는 주문번호가 바뀜 — 후속 취소/재정정은 modified_order_no를 사용할 것",
+            "이미 체결/취소된 주문의 정정은 KIS 에러 반환 — fallback.mode로 처리 방침을 정할 것",
+            "정정도 주문 TR — rate-limit(최소 5초 간격)이 적용됨",
+        ],
+    }
+
+    _inputs: List[InputPort] = [
+        InputPort(name="trigger", type="signal", description="i18n:ports.modify_trigger"),
+        InputPort(name="original_order_no", type="string", description="i18n:ports.original_order_id"),
+    ]
+    _outputs: List[OutputPort] = [
+        OutputPort(
+            name="result",
+            type="order_result",
+            description="i18n:ports.modify_result",
+            fields=KIS_ORDER_RESULT_FIELDS,
+        ),
+        OutputPort(
+            name="modified_order_no",
+            type="string",
+            description="i18n:ports.modified_order_id",
+        ),
+    ]
+
+    _version: ClassVar[str] = "1.0.0"
+    _updated_at: ClassVar[str] = "2026-07-19"
+    _change_note: ClassVar[Optional[str]] = None
+
+    @classmethod
+    def get_field_schema(cls) -> Dict[str, "FieldSchema"]:
+        from programgarden_core.models.field_binding import (
+            FieldSchema, FieldType, FieldCategory, ExpressionMode
+        )
+        return {
+            "original_order_no": FieldSchema(
+                name="original_order_no",
+                type=FieldType.STRING,
+                description="i18n:fields.KisModifyOrderNode.original_order_no",
+                required=True,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="{{ nodes.order.result.order_no }}",
+                example="0001234567",
+                example_binding="{{ nodes.order.result.order_no }}",
+                expected_type="str",
+            ),
+            "order_type": FieldSchema(
+                name="order_type",
+                type=FieldType.ENUM,
+                description="i18n:fields.KisModifyOrderNode.order_type",
+                default="limit",
+                enum_values=["limit", "market"],
+                enum_labels={
+                    "limit": "i18n:enums.kis_order_type.limit",
+                    "market": "i18n:enums.kis_order_type.market",
+                },
+                required=True,
+                expression_mode=ExpressionMode.FIXED_ONLY,
+                category=FieldCategory.PARAMETERS,
+                expected_type="str",
+                example="limit",
+            ),
+            "price": FieldSchema(
+                name="price",
+                type=FieldType.STRING,
+                description="i18n:fields.KisModifyOrderNode.price",
+                required=False,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="51000",
+                example="51000",
+                help_text="정정할 새 지정가(원). limit 정정 시 필수, market 정정 시 생략.",
+                expected_type="str",
+            ),
+            "quantity": FieldSchema(
+                name="quantity",
+                type=FieldType.STRING,
+                description="i18n:fields.KisModifyOrderNode.quantity",
+                required=False,
+                expression_mode=ExpressionMode.BOTH,
+                category=FieldCategory.PARAMETERS,
+                placeholder="10",
+                example="10",
+                help_text="정정할 수량. 생략하면 잔량 전부를 정정합니다.",
                 expected_type="str",
             ),
         }

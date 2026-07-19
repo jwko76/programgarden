@@ -112,10 +112,10 @@ from programgarden_core.nodes.market_bithumb import BithumbMarketDataNode
 from programgarden_core.nodes.historical_bithumb import BithumbHistoricalDataNode
 from programgarden_core.nodes.order_bithumb import BithumbNewOrderNode, BithumbCancelOrderNode
 from programgarden_core.nodes.broker_kis import KisBrokerNode
-from programgarden_core.nodes.account_kis import KisAccountNode
+from programgarden_core.nodes.account_kis import KisAccountNode, KisOrderableAmountNode
 from programgarden_core.nodes.market_kis import KisMarketDataNode
 from programgarden_core.nodes.historical_kis import KisHistoricalDataNode
-from programgarden_core.nodes.order_kis import KisNewOrderNode, KisCancelOrderNode
+from programgarden_core.nodes.order_kis import KisNewOrderNode, KisCancelOrderNode, KisModifyOrderNode
 # 키움증권 (Kiwoom)
 from programgarden_core.nodes.broker_kiwoom import KiwoomBrokerNode
 from programgarden_core.nodes.account_kiwoom import KiwoomAccountNode

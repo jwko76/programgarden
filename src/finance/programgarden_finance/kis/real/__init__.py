@@ -13,6 +13,7 @@ Example:
 from programgarden_core.korea_alias import EnforceKoreanAliasMeta, require_korean_alias
 
 from ..real_base import KisRealBase
+from .asking_price.client import RealAskingPrice
 from .ccnl.client import RealCcnl
 from .order_notice.client import RealOrderNotice
 
@@ -29,6 +30,14 @@ class KisReal(KisRealBase, metaclass=EnforceKoreanAliasMeta):
     체결가.__doc__ = "실시간 체결가(H0STCNT0) 스트림 클라이언트를 반환합니다."
 
     @require_korean_alias
+    def asking_price(self) -> RealAskingPrice:
+        """실시간 호가(H0STASP0) 스트림 클라이언트를 반환합니다."""
+        return RealAskingPrice(self)
+
+    호가 = asking_price
+    호가.__doc__ = "실시간 호가(H0STASP0) 스트림 클라이언트를 반환합니다."
+
+    @require_korean_alias
     def order_notice(self) -> RealOrderNotice:
         """실시간 체결통보(H0STCNI0/H0STCNI9) 스트림 클라이언트를 반환합니다."""
         return RealOrderNotice(self, self._token_manager.paper_trading)
@@ -40,5 +49,6 @@ class KisReal(KisRealBase, metaclass=EnforceKoreanAliasMeta):
 __all__ = [
     KisReal,
     RealCcnl,
+    RealAskingPrice,
     RealOrderNotice,
 ]

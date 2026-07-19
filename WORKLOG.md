@@ -5,6 +5,74 @@
 
 ---
 
+## 2026-07-19 (2) — KIS 확장(MVP 이후 보류분) 4항목 구현 (feature/kis-extensions)
+
+**작업자**: Claude (jwko76 요청 — TODO.md "KIS 확장" 진행)
+
+### hashkey 헤더
+`programgarden_finance.kis.config.URLS.HASHKEY_PATH`(`/uapi/hashkey`) 추가.
+`SetupOptions.use_hashkey`(기본 False) → `Kis(use_hashkey=True)`로 클라이언트
+전체에 전파. `GenericKisTR`이 POST 요청 직전 hashkey를 발급받아 `hashkey`
+헤더에 첨부(`_resolve_hashkey_sync/async`, `fetch_hashkey(_async)`). 발급
+실패는 경고 로그만 남기고 원 요청은 해시 없이 진행(KIS 권장 옵션이지 필수
+아님). GET 시세 조회는 대상에서 제외.
+
+### tr_cont 연속조회(페이지네이션)
+`KisResponseBase.tr_cont` 필드 + `parse_tr_cont`/`has_next_page` 헬퍼 추가.
+`InquireBalanceResponse`에 `ctx_area_fk100`/`nk100` 노출, `TrInquireBalance`에
+`req_all()`/`req_all_async()` — 다음 페이지 존재(F/M) 시 연속조회 키를 자동
+반영해 재요청하고 보유 종목을 병합(`max_pages` 안전 상한, 기본 10). KIS
+executor의 잔고 조회를 `req()` → `req_all()`로 전환해 대량 보유계좌도 전체
+수집.
+
+### LS식 token-provider 모드
+LS `TokenManager`의 provider/consumer 패턴을 `KisTokenManager`에 이식:
+`token_provider`/`async_token_provider` 콜백, `has_provider()`,
+`apply_token()`. provider 설정 시 파일 캐시 자동 비활성 + 자체 발급
+(`_refresh_token`의 self-issue 경로) 완전 우회. **KIS는 LS와 달리 모든 TR
+헤더에 appkey/appsecret이 필요**해 provider는 토큰 발급만 위임(appsecret
+없이 provider만으로는 TR 자체를 못 씀 — client.py에 근거 문서화).
+`ensure_fresh_token_async`/동기 경로에서 async-only provider 오용 감지 추가.
+
+### H0STASP0 실시간 호가
+`real/asking_price/` 신규 모듈(blocks.py: 위치 기반 파이프 필드 파싱,
+client.py: RealAskingPrice) — `kis.실시간().호가()`. `real_base.py`의
+`_TR_MODEL_MAP`, `real/__init__.py`, 최상위 `__init__.py` export까지 배선.
+
+### KisModifyOrderNode + KisOrderableAmountNode (core 노드 신규 2종)
+- `KisModifyOrderNode`(order_kis.py) — 정정취소 TR을 RVSE_CNCL_DVSN_CD=01로
+  호출. **정정 시 주문번호가 바뀌므로** `modified_order_no` 출력 포트를 별도
+  제공하고 후속 취소는 이 값을 쓰도록 예제·문서에 명시.
+- `KisOrderableAmountNode`(account_kis.py) — 매수가능조회(kt8908R류)로
+  orderable_cash/max_buy_quantity/nrcvb_buy_quantity 등 반환, 포지션
+  사이징 예제 포함.
+- 양쪽 모두 i18n(ko/en) 완비, registry 등록, executor 2종(KisModifyOrderNode
+  Executor는 dry_run 시뮬레이션 지원) + deep fixture(`kis_orderable_fixture`,
+  기존 `kis_account_fixture` shape 재사용).
+- core 노드 개수 하드코딩 검증(87→89) 갱신.
+
+### 테스트
+- finance 신규 4개 파일: `test_kis_hashkey.py`(7), `test_kis_pagination.py`(4),
+  `test_kis_token_provider.py`(7), `test_kis_real_asking_price.py`(8).
+  기존 `test_kis_order.py`(정정 3건)·`test_kis_accno.py`(시장가 기준 1건) 보강.
+  **req_async 경로는 requests_mock이 aiohttp를 가로채지 못해**(코드베이스
+  선례 없음) 비동기 hashkey/연속조회 테스트는 동기 경로로 로직 커버하고
+  네트워크 단정은 제외 — 실수로 실제 KIS 서버를 호출한 것을 발견 후 수정.
+- deep_validate 신규 3건(정정→취소 DAG, orderable fixture shape, modify
+  dry_run) + 기존 KIS 케이스 전부 통과.
+- 회귀: finance 전체 스위트 3300+ passed, KIS 관련 실패 0건(170건 실패는
+  전부 기존에 알려진 LS field metadata/빗썸 live 테스트, 무관).
+- 버전: finance 1.12.0, core 1.19.0, programgarden 1.29.0.
+- 문서: `docs/kis_finance_guide.md`(연속조회/hashkey/token-provider/호가
+  섹션 추가), `00-workflow-guide.md`(신규 노드 2종 포트 표 + modified_order_no
+  주의사항).
+
+### 남은 것
+라이브 검증 미실시 — 다음 KIS 실전 주문 검증(다음 개장일, 별도 TODO 항목)
+시 hashkey·정정·연속조회를 함께 확인 권장.
+
+---
+
 ## 2026-07-19 — OCI 개발서버 프로비저닝 (infra/oci-dev, Terraform)
 
 **작업자**: Claude (jwko76 요청 — 키움/빗썸 IP 화이트리스트가 OCI 운영서버 기준이라

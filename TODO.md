@@ -34,7 +34,6 @@
   - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
   - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
   - 공통 규칙: 기존 enum 값·기본값 불변(하위호환), 스키마 minor 버전 bump, prev 값 None(데이터 부족) 시 크로스 불통과, 플러그인별 단위테스트(돌파 통과/유지 침묵/부족 데이터)
-- [ ] **KIS 확장 (MVP 이후 보류분)** — hashkey 헤더, tr_cont 페이지네이션, KisModifyOrderNode(정정), H0STASP0 실시간 호가, 주문가능조회 노드화, LS식 token-provider 모드
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
 - [ ] **미래에셋증권** — 공개 REST 오픈API 미확인으로 보류 (개발자센터 공개 시 재검토)
@@ -42,6 +41,18 @@
 ---
 
 ## 완료됨
+
+- [x] **KIS 확장 (MVP 이후 보류분)** (2026-07-19, feature/kis-extensions) — finance 1.12.0 / core 1.19.0 / programgarden 1.29.0
+  - hashkey 헤더: `/uapi/hashkey` 발급 + POST 주문 TR 자동 첨부 (`use_hashkey` 옵션, 발급 실패해도 주문은 진행)
+  - tr_cont 연속조회: `inquire_balance().req_all()`/`req_all_async()` — 여러 페이지 자동 수집·병합, executor도 전환
+  - LS식 token-provider 모드: 외부 서버가 토큰 발급 전담, 클라이언트는 소비만 (`Kis(token_provider=...)`).
+    KIS는 모든 TR에 appkey/appsecret 헤더가 필요해 LS와 달리 provider는 토큰 발급만 위임(appkey/appsecret은 여전히 필요)
+  - H0STASP0 실시간 호가: `real/asking_price/` 신규 모듈, `kis.실시간().호가()`
+  - `KisModifyOrderNode`(정정, RVSE_CNCL_DVSN_CD=01) + `KisOrderableAmountNode`(매수가능조회) core 노드 신규 —
+    i18n(ko/en)·executor·deep fixture 완비. 정정 시 주문번호가 바뀌므로 modified_order_no 사용 필요(문서화)
+  - 테스트: finance 신규 4개 파일(hashkey/pagination/token_provider/real_asking_price) + 기존 파일 보강,
+    core 노드 개수 87→89 갱신, deep_validate 신규 3건 — 회귀 없음(finance 전체 3300+ passed, KIS 관련 실패 0)
+  - 라이브 검증 미실시(코드 레벨만) — 다음 KIS 실전 주문 검증 시 hashkey/정정/연속조회 함께 확인 권장
 
 - [x] **키움증권 모의서버 1차 라이브 검증** (2026-07-18, feature/kiwoom-broker)
   - 토큰 발급(24h TTL, 파일캐시 복원) / 현재가 ka10001(추정 필드 전부 적중, 가격 등락부호 확인) /

@@ -655,15 +655,20 @@ All display nodes output:
 | KisAccountNode | balance | balance_data | Deposit summary (deposit, orderable_amount, total_evaluation, total_profit_loss) |
 | KisAccountNode | positions | position_data | Held stocks (symbol, symbol_name, quantity, avg_buy_price, current_price, profit_loss) |
 | KisAccountNode | held_symbols | symbol_list | Held symbol codes (e.g. `[{"symbol": "005930"}]`) |
+| KisOrderableAmountNode | orderable | balance_data | Buyable-amount info for a symbol/price (orderable_cash, max_buy_quantity, nrcvb_buy_quantity, …) |
 | KisMarketDataNode | values | market_data | Price array (symbol, current_price, change_rate, volume, per, pbr, …) |
 | KisHistoricalDataNode | time_series | symbol_series | ConditionNode-ready `[{symbol, exchange: "KRX", time_series}]` (oldest-first) |
 | KisHistoricalDataNode | values | candle_data | Raw daily candles, newest-first (symbol, date, open, high, low, close, volume) |
 | KisNewOrderNode | result | order_result | Order result (order_no, symbol, side, quantity, price, paper_trading, status) |
 | KisNewOrderNode | order_no | string | Shortcut to result.order_no |
+| KisModifyOrderNode | result | order_result | Modify result (order_no is the NEW order number after modification) |
+| KisModifyOrderNode | modified_order_no | string | Shortcut to result.order_no — use for follow-up cancel |
 | KisCancelOrderNode | cancel_result | order_result | Cancel result (order_no, status) |
 | KisCancelOrderNode | cancelled_order_no | string | Cancelled order number |
 
 **Credential `broker_kis`**: `appkey`, `appsecret`, `account_no` (CANO 8자리), `account_product_code` (기본 `01`). `KisBrokerNode.paper_trading=true` switches to the KIS paper server and order TR IDs flip automatically (TTTC↔VTTC).
+
+**KisModifyOrderNode pitfall**: modifying an order issues a NEW order number — bind `KisModifyOrderNode.modified_order_no` (not the original) to any subsequent `KisCancelOrderNode.original_order_no`.
 
 ### Kiwoom Nodes (키움증권 국내주식)
 

@@ -15825,18 +15825,22 @@ class WorkflowExecutor:
             from programgarden.kis_executors import (
                 KisBrokerNodeExecutor,
                 KisAccountNodeExecutor,
+                KisOrderableAmountNodeExecutor,
                 KisMarketDataNodeExecutor,
                 KisHistoricalDataNodeExecutor,
                 KisNewOrderNodeExecutor,
                 KisCancelOrderNodeExecutor,
+                KisModifyOrderNodeExecutor,
             )
             return {
                 "KisBrokerNode": KisBrokerNodeExecutor(),
                 "KisAccountNode": KisAccountNodeExecutor(),
+                "KisOrderableAmountNode": KisOrderableAmountNodeExecutor(),
                 "KisMarketDataNode": KisMarketDataNodeExecutor(),
                 "KisHistoricalDataNode": KisHistoricalDataNodeExecutor(),
                 "KisNewOrderNode": KisNewOrderNodeExecutor(),
                 "KisCancelOrderNode": KisCancelOrderNodeExecutor(),
+                "KisModifyOrderNode": KisModifyOrderNodeExecutor(),
             }
         except ImportError as exc:
             logger.warning(f"KIS executors를 로드할 수 없습니다: {exc}")
