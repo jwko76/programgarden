@@ -496,6 +496,21 @@ def kis_account_fixture() -> Dict[str, Any]:
     }
 
 
+def kis_orderable_fixture(symbol: str = "005930") -> Dict[str, Any]:
+    """KisOrderableAmountNode deep fixture."""
+    return {
+        "orderable": {
+            "symbol": str(symbol).strip().upper() or "005930",
+            "orderable_cash": 9990000.0,
+            "max_buy_amount": 9990000.0,
+            "max_buy_quantity": 138.0,
+            "nrcvb_buy_amount": 9990000.0,
+            "nrcvb_buy_quantity": 138.0,
+            "calc_price": 71900.0,
+        },
+    }
+
+
 def kis_market_data_fixture(symbols_raw: str = "005930") -> Dict[str, Any]:
     """KisMarketDataNode deep fixture."""
     symbol_list = [s.strip() for s in str(symbols_raw).split(",") if s.strip()]

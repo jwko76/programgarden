@@ -1350,6 +1350,10 @@
   "nodes.KisNewOrderNode.name": "KIS New Order",
   "nodes.KisCancelOrderNode.description": "Cancels a pending KIS order (real TTTC0803U, paper VTTC0803U). Bind the order number (ODNO) to cancel to the original_order_no field; omit quantity to cancel the full remaining amount. Outputs cancel_result and cancelled_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KisBrokerNode.",
   "nodes.KisCancelOrderNode.name": "KIS Cancel Order",
+  "nodes.KisModifyOrderNode.description": "Modifies the price/quantity of a pending KIS order (real TTTC0803U, paper VTTC0803U — RVSE_CNCL_DVSN_CD=01). Bind the order number (ODNO) to original_order_no and the new limit price to price; omit quantity to modify the full remaining amount. The order number changes after modification — use modified_order_no for follow-up cancels. Outputs result and modified_order_no. Rate-limited to 5-second minimum interval. Requires an upstream KisBrokerNode.",
+  "nodes.KisModifyOrderNode.name": "KIS Modify Order",
+  "nodes.KisOrderableAmountNode.description": "Queries KIS buyable-amount info for a symbol at a given price (real TTTC8908R, paper VTTC8908R): orderable cash, max buyable amount/quantity, and margin-free (nrcvb) values. Omit price to calculate at market price. Use the orderable output for position sizing into KisNewOrderNode. Requires an upstream KisBrokerNode. Available as an AI Agent tool.",
+  "nodes.KisOrderableAmountNode.name": "KIS Orderable Amount",
 
   "fields.KisBrokerNode.credential_id": "Select KIS credentials (broker_kis type: appkey, appsecret, account_no, account_product_code)",
   "fields.KisBrokerNode.paper_trading": "Paper trading mode (true: KIS paper server, false: live server)",
@@ -1362,6 +1366,12 @@
   "fieldNames.KisNewOrderNode.order": "Order",
   "fields.KisCancelOrderNode.original_order_no": "KIS order number (ODNO) to cancel",
   "fields.KisCancelOrderNode.quantity": "Quantity to cancel (omit for full remaining amount)",
+  "fields.KisModifyOrderNode.original_order_no": "KIS order number (ODNO) to modify",
+  "fields.KisModifyOrderNode.order_type": "Modify order type (limit / market)",
+  "fields.KisModifyOrderNode.price": "New limit price (KRW) — required for limit modification",
+  "fields.KisModifyOrderNode.quantity": "Quantity to modify (omit for full remaining amount)",
+  "fields.KisOrderableAmountNode.symbol": "Symbol code to calculate buyable amount for (6-digit, e.g. 005930)",
+  "fields.KisOrderableAmountNode.price": "Reference limit price (KRW) — omit to calculate at market price",
 
   "enums.kis_side.buy": "Buy",
   "enums.kis_side.sell": "Sell",

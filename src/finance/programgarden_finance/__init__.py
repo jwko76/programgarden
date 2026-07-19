@@ -196,10 +196,12 @@ from .kis import Kis, KisTokenManager
 from .kis.real import (
     KisReal,
     RealCcnl,
+    RealAskingPrice,
     RealOrderNotice,
 )
 from .kis.real_base import KisSubscriptionLimitExceeded
 from .kis.real.ccnl.blocks import CcnlRealResponse
+from .kis.real.asking_price.blocks import AskingPriceRealResponse
 from .kis.real.order_notice.blocks import OrderNoticeRealResponse
 from .kis import quotations as kis_quotations
 from .kis import accno as kis_accno
@@ -538,8 +540,10 @@ __all__ = [
     KisReal,
     KisSubscriptionLimitExceeded,
     RealCcnl,
+    RealAskingPrice,
     RealOrderNotice,
     CcnlRealResponse,
+    AskingPriceRealResponse,
     OrderNoticeRealResponse,
 
     kiwoom,

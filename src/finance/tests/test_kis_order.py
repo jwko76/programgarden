@@ -138,6 +138,61 @@ class TestOrderRvsecnclMock:
         assert body["ORD_UNPR"] == "0"
 
 
+class TestOrderRvsecnclModify:
+    """정정(RVSE_CNCL_DVSN_CD=01) 경로 — 취소(02)와 같은 TR을 공유하므로
+    구분 코드가 실제로 정정을 요청하는지 별도로 검증합니다."""
+
+    @pytest.mark.parametrize(
+        "paper,expected_tr_id",
+        [(False, "TTTC0803U"), (True, "VTTC0803U")],
+    )
+    def test_modify_tr_id(self, requests_mock, paper, expected_tr_id):
+        kis = _login(paper, requests_mock)
+        base = URLS.PAPER_URL if paper else URLS.REAL_URL
+        requests_mock.post(f"{base}{URLS.ORDER_RVSECNCL_PATH}", json=ORDER_RESPONSE)
+
+        resp = kis.order().order_rvsecncl(
+            OrderRvsecnclBodyBlock(
+                cano="", orgn_odno="0000117057", rvse_cncl_dvsn_cd="01",
+                ord_qty="5", ord_unpr="61000", qty_all_ord_yn="N",
+            )
+        ).req()
+
+        assert resp.error_msg is None
+        assert requests_mock.last_request.headers["tr_id"] == expected_tr_id
+
+    def test_modify_body_fields(self, requests_mock):
+        kis = _login(True, requests_mock)
+        requests_mock.post(f"{URLS.PAPER_URL}{URLS.ORDER_RVSECNCL_PATH}", json=ORDER_RESPONSE)
+
+        kis.order().order_rvsecncl(
+            OrderRvsecnclBodyBlock(
+                cano="", orgn_odno="0000117057", rvse_cncl_dvsn_cd="01",
+                ord_dvsn="00", ord_qty="5", ord_unpr="61000", qty_all_ord_yn="N",
+            )
+        ).req()
+
+        body = requests_mock.last_request.json()
+        assert body["RVSE_CNCL_DVSN_CD"] == "01"  # 정정 (02 취소와 구분)
+        assert body["ORGN_ODNO"] == "0000117057"
+        assert body["ORD_UNPR"] == "61000"
+        assert body["ORD_QTY"] == "5"
+        assert body["QTY_ALL_ORD_YN"] == "N"
+
+    def test_modify_full_quantity_defaults(self, requests_mock):
+        """quantity 미지정 시 정정도 취소와 동일하게 잔량 전부(Y)로 처리됩니다."""
+        kis = _login(True, requests_mock)
+        requests_mock.post(f"{URLS.PAPER_URL}{URLS.ORDER_RVSECNCL_PATH}", json=ORDER_RESPONSE)
+
+        kis.order().order_rvsecncl(
+            OrderRvsecnclBodyBlock(cano="", orgn_odno="0000117057", rvse_cncl_dvsn_cd="01", ord_unpr="61000")
+        ).req()
+
+        body = requests_mock.last_request.json()
+        assert body["QTY_ALL_ORD_YN"] == "Y"
+        assert body["ORD_QTY"] == "0"
+
+
 class TestExpiredTokenRetry:
     def test_expired_token_response_triggers_reissue_and_retry(self, requests_mock):
         kis = _login(True, requests_mock)

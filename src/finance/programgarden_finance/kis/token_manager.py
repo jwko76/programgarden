@@ -19,7 +19,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional, Tuple
 
 import requests
 
@@ -46,13 +46,37 @@ class KisTokenManager:
     approval_key: Optional[str] = field(default=None, repr=False)
     token_cache_path: Optional[Path] = None
     use_file_cache: bool = True
+    # POST 주문 TR에 hashkey 헤더를 자동 첨부할지 여부 (클라이언트 설정 전파용)
+    use_hashkey: bool = False
+
+    # LS식 token-provider(consumer) 모드 — 외부 서버가 토큰 발급을 전담하고
+    # 이 클라이언트는 소비만 한다 (appsecret 불필요, self-issue 금지).
+    # 콜백은 (access_token, expires_at_epoch_seconds)를 반환한다.
+    token_provider: Optional[Callable[[], Tuple[str, float]]] = field(
+        default=None, compare=False, repr=False
+    )
+    async_token_provider: Optional[Callable[[], Awaitable[Tuple[str, float]]]] = field(
+        default=None, compare=False, repr=False
+    )
 
     def __post_init__(self):
         self._refresh_lock = threading.Lock()
+        # provider 모드에서는 토큰 소유권이 외부에 있으므로 파일 캐시를 사용하지 않음
+        if self.has_provider():
+            self.use_file_cache = False
         if self.token_cache_path is None and self.use_file_cache:
             self.token_cache_path = DEFAULT_CACHE_DIR / self._cache_filename()
         if self.use_file_cache:
             self._load_cache()
+
+    def has_provider(self) -> bool:
+        """token-provider(consumer) 모드 여부."""
+        return self.token_provider is not None or self.async_token_provider is not None
+
+    def apply_token(self, access_token: str, expires_at: float) -> None:
+        """외부에서 발급한 토큰을 직접 주입합니다 (provider/consumer 모드)."""
+        self.access_token = access_token
+        self.expires_at = float(expires_at)
 
     # ─────────────────────────────────────────────── 캐시 ──
 
@@ -117,10 +141,39 @@ class KisTokenManager:
     # ─────────────────────────────────────────────── 토큰 ──
 
     def ensure_fresh_token(self, force_refresh: bool = False) -> bool:
-        """토큰이 만료되었거나 강제 갱신이 필요한 경우 동기적으로 갱신합니다."""
+        """토큰이 만료되었거나 강제 갱신이 필요한 경우 동기적으로 갱신합니다.
+
+        async_token_provider만 설정된 경우 동기 경로에서는 갱신할 수 없으므로
+        ``ensure_fresh_token_async``를 사용하세요.
+        """
         if not force_refresh and not self.is_expired():
             return True
+        if self.token_provider is None and self.async_token_provider is not None:
+            logger.error(
+                "async_token_provider만 설정됨 — 동기 경로에서는 갱신 불가. "
+                "ensure_fresh_token_async를 사용하거나 sync token_provider를 함께 설정하세요."
+            )
+            return self.is_token_available()
         return self._refresh_token()
+
+    async def ensure_fresh_token_async(self, force_refresh: bool = False) -> bool:
+        """비동기 토큰 갱신 — async_token_provider가 있으면 우선 사용합니다."""
+        if not force_refresh and not self.is_expired():
+            return True
+        if self.async_token_provider is not None:
+            try:
+                access_token, expires_at = await self.async_token_provider()
+                if access_token:
+                    self.apply_token(access_token, expires_at)
+                    logger.info("KIS 토큰을 async_token_provider로 갱신 완료")
+                    return True
+                logger.error("KIS async_token_provider가 빈 access_token을 반환")
+                return False
+            except Exception as e:
+                logger.error(f"KIS async_token_provider 호출 중 예외: {e}")
+                return False
+        import asyncio as _asyncio
+        return await _asyncio.to_thread(self._refresh_token)
 
     def get_bearer_token(self) -> str:
         """``Bearer <token>`` 형식의 토큰을 반환합니다. 만료 시 자동 갱신합니다."""
@@ -134,7 +187,29 @@ class KisTokenManager:
         """접근토큰을 발급/갱신합니다 (중복 갱신 방지 Lock).
 
         KIS 재발급 제한(약 1분당 1회) 때문에 실패 시 즉시 재시도하지 않습니다.
+        token-provider 모드에서는 외부 서버가 유일한 발급자이며 self-issue하지 않습니다.
         """
+        # provider/consumer 모드 — 콜백에서 토큰을 받아 주입 (appsecret 불필요)
+        if self.token_provider is not None:
+            if not self._refresh_lock.acquire(timeout=10):
+                logger.warning("KIS 토큰 갱신 Lock 대기 초과 — 다른 갱신 진행 중")
+                return self.is_token_available()
+            try:
+                if not self.is_expired():
+                    return True
+                access_token, expires_at = self.token_provider()
+                if access_token:
+                    self.apply_token(access_token, expires_at)
+                    logger.info("KIS 토큰을 token_provider로 갱신 완료")
+                    return True
+                logger.error("KIS token_provider가 빈 access_token을 반환")
+                return False
+            except Exception as e:
+                logger.error(f"KIS token_provider 호출 중 예외: {e}")
+                return False
+            finally:
+                self._refresh_lock.release()
+
         if not self.appkey or not self.appsecret:
             return False
 

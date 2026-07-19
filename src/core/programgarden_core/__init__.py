@@ -24,7 +24,7 @@ from programgarden_core.exceptions import *
 from programgarden_core import korea_alias
 from programgarden_core import bases
 
-__version__ = "1.18.0"
+__version__ = "1.19.0"
 __all__ = [
     # Nodes - Base
     "BaseNode",

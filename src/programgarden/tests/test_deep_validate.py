@@ -1218,6 +1218,91 @@ async def test_kis_historical_fixture_shape():
     assert all("close" in c for c in candles)
 
 
+def kis_extensions_workflow() -> dict:
+    """start → KisBroker(모의) → KisOrderableAmount / KisNewOrder → KisModifyOrder.
+
+    KIS 보류분(정정 노드·주문가능조회 노드)이 기존 KIS 노드들과 한 DAG에서
+    deep-validate를 통과하는지 검증합니다."""
+    return {
+        "id": "wf-kis-extensions",
+        "name": "kis extensions deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+            {"id": "orderable", "type": "KisOrderableAmountNode", "symbol": "005930", "price": "60000"},
+            {
+                "id": "buy",
+                "type": "KisNewOrderNode",
+                "side": "buy",
+                "order_type": "limit",
+                "order": {"symbol": "005930", "quantity": "10", "price": "60000"},
+            },
+            {
+                "id": "modify",
+                "type": "KisModifyOrderNode",
+                "original_order_no": "{{ nodes.buy.result.order_no }}",
+                "order_type": "limit",
+                "price": "61000",
+            },
+        ],
+        "edges": [
+            {"from": "start", "to": "broker"},
+            {"from": "broker", "to": "orderable"},
+            {"from": "orderable", "to": "buy"},
+            {"from": "buy", "to": "modify"},
+        ],
+        "credentials": _kis_credentials(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_kis_extensions_deep_validate_passes():
+    """KisOrderableAmountNode → KisNewOrderNode → KisModifyOrderNode DAG must deep-validate cleanly."""
+    pg = ProgramGarden()
+    result = await asyncio.wait_for(
+        pg.executor.deep_validate(kis_extensions_workflow(), timeout=12.0),
+        timeout=20.0,
+    )
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_kis_orderable_amount_fixture_shape():
+    """KisOrderableAmountNodeExecutor in deep mode returns correct fixture shape."""
+    from programgarden.kis_executors import KisOrderableAmountNodeExecutor
+
+    ctx = make_deep_context()
+    ex = KisOrderableAmountNodeExecutor()
+    out = await ex.execute(
+        node_id="orderable",
+        node_type="KisOrderableAmountNode",
+        config={"symbol": "005930", "price": "60000", "connection": {"provider": "koreainvestment.com", "appkey": "x", "appsecret": "y"}},
+        context=ctx,
+    )
+    assert "orderable" in out
+    assert out["orderable"]["symbol"] == "005930"
+    assert out["orderable"]["max_buy_quantity"] > 0
+
+
+@pytest.mark.asyncio
+async def test_kis_modify_order_dry_run():
+    """KisModifyOrderNodeExecutor dry_run must simulate without a real API call."""
+    from programgarden.kis_executors import KisModifyOrderNodeExecutor
+
+    # make_deep_context()는 context_params={"deep_validate": True}를 설정하며
+    # is_dry_run은 deep_validate/dry_run 중 하나라도 True면 True를 반환합니다.
+    ctx = make_deep_context()
+    ex = KisModifyOrderNodeExecutor()
+    out = await ex.execute(
+        node_id="modify",
+        node_type="KisModifyOrderNode",
+        config={"original_order_no": "0000117057", "order_type": "limit", "price": "61000"},
+        context=ctx,
+    )
+    assert out["result"]["dry_run"] is True
+    assert out["modified_order_no"].startswith("DRYRUN-")
+
+
 # ============================================================
 # Kiwoom (키움증권 국내주식) deep_validate tests
 # ============================================================

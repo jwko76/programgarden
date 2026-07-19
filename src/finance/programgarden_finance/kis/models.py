@@ -20,6 +20,10 @@ class SetupOptions(BaseModel):
     rate_limit_key: Optional[str] = Field(
         default=None, description="여러 TR이 rate-limit 카운터를 공유할 때 사용하는 키"
     )
+    use_hashkey: bool = Field(
+        default=False,
+        description="POST 주문 TR에 /uapi/hashkey 해시 헤더를 추가해 본문 위변조를 방지 (KIS 권장 옵션)",
+    )
     token_manager: Optional[Any] = Field(
         default=None, exclude=True, repr=False, description="KisTokenManager (클라이언트가 주입)"
     )
@@ -27,7 +31,12 @@ class SetupOptions(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
-    def for_mode(cls, paper_trading: bool, appkey: Optional[str] = None) -> "SetupOptions":
+    def for_mode(
+        cls,
+        paper_trading: bool,
+        appkey: Optional[str] = None,
+        use_hashkey: bool = False,
+    ) -> "SetupOptions":
         """실전/모의 모드에 맞는 기본 rate-limit 옵션을 생성합니다.
 
         appkey가 주어지면 같은 계정의 모든 TR이 rate-limit 버킷을 공유합니다.
@@ -36,6 +45,7 @@ class SetupOptions(BaseModel):
             rate_limit_count=2 if paper_trading else 20,
             rate_limit_seconds=1,
             rate_limit_key=f"kis:{appkey}" if appkey else None,
+            use_hashkey=use_hashkey,
         )
 
 
@@ -50,6 +60,10 @@ class KisResponseBase(BaseModel):
     msg_cd: Optional[str] = Field(default=None, description="응답 메시지 코드", examples=["MCA00000"])
     msg1: Optional[str] = Field(default=None, description="응답 메시지")
     error_msg: Optional[str] = Field(default=None, description="에러 메시지 (성공 시 None)")
+    tr_cont: Optional[str] = Field(
+        default=None,
+        description="연속조회 여부 (응답 헤더 tr_cont — F/M: 다음 페이지 있음, D/E: 마지막)",
+    )
 
     _raw_data: Optional[object] = PrivateAttr(default=None)
 

@@ -194,9 +194,9 @@ class NodeTypeRegistry:
             BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
             # KIS (한국투자증권 국내주식)
-            KisBrokerNode, KisAccountNode, KisMarketDataNode,
+            KisBrokerNode, KisAccountNode, KisOrderableAmountNode, KisMarketDataNode,
             KisHistoricalDataNode,
-            KisNewOrderNode, KisCancelOrderNode,
+            KisNewOrderNode, KisCancelOrderNode, KisModifyOrderNode,
             # 키움 (키움증권 국내주식)
             KiwoomBrokerNode, KiwoomAccountNode, KiwoomMarketDataNode,
             KiwoomHistoricalDataNode,
@@ -261,9 +261,9 @@ class NodeTypeRegistry:
             BithumbHistoricalDataNode,
             BithumbNewOrderNode, BithumbCancelOrderNode,
             # KIS (한국투자증권 국내주식)
-            KisBrokerNode, KisAccountNode, KisMarketDataNode,
+            KisBrokerNode, KisAccountNode, KisOrderableAmountNode, KisMarketDataNode,
             KisHistoricalDataNode,
-            KisNewOrderNode, KisCancelOrderNode,
+            KisNewOrderNode, KisCancelOrderNode, KisModifyOrderNode,
             # 키움 (키움증권 국내주식)
             KiwoomBrokerNode, KiwoomAccountNode, KiwoomMarketDataNode,
             KiwoomHistoricalDataNode,

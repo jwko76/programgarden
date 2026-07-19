@@ -25,6 +25,9 @@ class URLS:
     TOKEN_PATH: str = "/oauth2/tokenP"
     APPROVAL_PATH: str = "/oauth2/Approval"
 
+    # POST 본문 위변조 방지 해시 (주문 TR 선택 적용)
+    HASHKEY_PATH: str = "/uapi/hashkey"
+
     # 국내주식 시세
     INQUIRE_PRICE_PATH: str = "/uapi/domestic-stock/v1/quotations/inquire-price"
     INQUIRE_ASKING_PRICE_PATH: str = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"

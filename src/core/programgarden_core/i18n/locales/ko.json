@@ -1347,6 +1347,10 @@
   "nodes.KisNewOrderNode.name": "한국투자증권 신규주문",
   "nodes.KisCancelOrderNode.description": "한국투자증권 미체결 주문을 취소합니다 (실전 TTTC0803U, 모의 VTTC0803U). original_order_no 필드에 취소할 주문번호(ODNO)를 바인딩하세요. quantity 생략 시 잔량 전부를 취소합니다. 출력: cancel_result (취소 결과), cancelled_order_no (취소된 주문번호). 최소 5초 간격 제한 적용. 상위 KisBrokerNode 연결 필수.",
   "nodes.KisCancelOrderNode.name": "한국투자증권 취소주문",
+  "nodes.KisModifyOrderNode.description": "한국투자증권 미체결 주문의 가격·수량을 정정합니다 (실전 TTTC0803U, 모의 VTTC0803U — RVSE_CNCL_DVSN_CD=01). original_order_no 필드에 정정할 주문번호(ODNO)를, price에 새 지정가를 바인딩하세요. quantity 생략 시 잔량 전부를 정정합니다. 정정 후에는 주문번호가 바뀌므로 후속 취소는 modified_order_no를 사용하세요. 출력: result (정정 결과), modified_order_no (정정 접수 주문번호). 최소 5초 간격 제한 적용. 상위 KisBrokerNode 연결 필수.",
+  "nodes.KisModifyOrderNode.name": "한국투자증권 정정주문",
+  "nodes.KisOrderableAmountNode.description": "한국투자증권 매수가능조회로 특정 종목·가격 기준의 주문 가능 현금과 최대 매수 가능 수량을 조회합니다 (실전 TTTC8908R, 모의 VTTC8908R). symbol에 종목코드를, price에 계산 기준 지정가를 설정합니다 (price 생략 시 시장가 기준). 출력: orderable {orderable_cash, max_buy_amount, max_buy_quantity, nrcvb_buy_amount(미수 없는 매수 금액), nrcvb_buy_quantity} — 포지션 사이징 입력으로 사용. 상위 KisBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.KisOrderableAmountNode.name": "한국투자증권 매수가능조회",
 
   "fields.KisBrokerNode.credential_id": "한국투자증권 인증정보를 선택하세요 (broker_kis 타입: appkey, appsecret, account_no, account_product_code)",
   "fields.KisBrokerNode.paper_trading": "모의투자 모드 (true: 모의투자 서버, false: 실전 서버)",
@@ -1359,6 +1363,12 @@
   "fieldNames.KisNewOrderNode.order": "주문 정보",
   "fields.KisCancelOrderNode.original_order_no": "취소할 한국투자증권 주문번호 (ODNO)",
   "fields.KisCancelOrderNode.quantity": "취소 수량 (생략 시 전량 취소)",
+  "fields.KisModifyOrderNode.original_order_no": "정정할 한국투자증권 주문번호 (ODNO)",
+  "fields.KisModifyOrderNode.order_type": "정정 주문 방식 (limit: 지정가, market: 시장가)",
+  "fields.KisModifyOrderNode.price": "정정할 새 지정가(원) — limit 정정 시 필수",
+  "fields.KisModifyOrderNode.quantity": "정정 수량 (생략 시 잔량 전부 정정)",
+  "fields.KisOrderableAmountNode.symbol": "매수 가능 금액을 계산할 종목코드 (6자리, ex. 005930)",
+  "fields.KisOrderableAmountNode.price": "계산 기준 지정가(원) — 생략 시 시장가 기준",
 
   "enums.kis_side.buy": "매수 (buy)",
   "enums.kis_side.sell": "매도 (sell)",
