@@ -19,13 +19,22 @@ CALMAR_RATIO_SCHEMA = PluginSchema(
     id="CalmarRatio",
     name="Calmar Ratio",
     category=PluginCategory.POSITION,
-    version="1.0.0",
-    description="Calmar ratio measures CAGR divided by maximum drawdown. Higher values indicate better risk-adjusted returns. Useful for evaluating strategies over longer periods.",
+    version="1.1.0",
+    description="Calmar ratio measures CAGR divided by maximum drawdown. Higher values indicate better risk-adjusted returns. Useful for evaluating strategies over longer periods. Use cross_above/cross_below to fire only at the moment Calmar crosses the threshold (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {"type": "int", "default": 252, "title": "Lookback Period", "description": "Number of periods (typically 1 year)", "ge": 60, "le": 756},
         "threshold": {"type": "float", "default": 1.0, "title": "Threshold", "description": "Calmar ratio threshold", "ge": -5.0, "le": 20.0},
-        "direction": {"type": "string", "default": "above", "title": "Direction", "description": "above: good, below: poor", "enum": ["above", "below"]},
+        "direction": {
+            "type": "string", "default": "above", "title": "Direction",
+            "description": (
+                "above: fires every evaluation while Calmar stays above threshold (good), "
+                "below: fires every evaluation while Calmar stays below threshold (poor), "
+                "cross_above: fires once at the moment Calmar crosses over threshold (edge trigger), "
+                "cross_below: fires once at the moment Calmar crosses under threshold"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
+        },
     },
     required_data=["data"],
     required_fields=["symbol", "exchange", "date", "close"],
@@ -43,7 +52,7 @@ CALMAR_RATIO_SCHEMA = PluginSchema(
             "description": "CAGR을 최대낙폭(MDD)으로 나눈 비율입니다. 높을수록 위험 대비 수익이 좋습니다.",
             "fields.lookback": "룩백 기간 (일, 보통 252 = 1년)",
             "fields.threshold": "칼마 비율 임계치",
-            "fields.direction": "방향 (above: 양호, below: 부진)",
+            "fields.direction": "방향 (above: 양호 — 유지 중 매 평가마다 발생, below: 부진, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -139,12 +148,30 @@ async def calmar_ratio_condition(
 
         current_price = prices[-1] if prices else None
         metrics = calculate_calmar(prices, lookback)
+        prev_metrics = calculate_calmar(prices[:-1], lookback)
 
-        symbol_results.append({"symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price})
+        symbol_results.append({
+            "symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price,
+            "prev_calmar_ratio": prev_metrics["calmar_ratio"],
+        })
         values.append({"symbol": symbol, "exchange": exchange, "time_series": []})
 
-        if metrics["calmar_ratio"] is not None and math.isfinite(metrics["calmar_ratio"]):
-            cond = metrics["calmar_ratio"] > threshold if direction == "above" else metrics["calmar_ratio"] < threshold
+        calmar = metrics["calmar_ratio"]
+        prev_calmar = prev_metrics["calmar_ratio"]
+        calmar_ok = calmar is not None and math.isfinite(calmar)
+        prev_calmar_ok = prev_calmar is not None and math.isfinite(prev_calmar)
+
+        if calmar_ok:
+            if direction == "above":
+                cond = calmar > threshold
+            elif direction == "below":
+                cond = calmar < threshold
+            elif direction == "cross_above":
+                cond = prev_calmar_ok and prev_calmar <= threshold and calmar > threshold
+            elif direction == "cross_below":
+                cond = prev_calmar_ok and prev_calmar >= threshold and calmar < threshold
+            else:
+                cond = False
             (passed if cond else failed).append(sym_dict)
         else:
             failed.append(sym_dict)

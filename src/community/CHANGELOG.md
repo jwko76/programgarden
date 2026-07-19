@@ -1,3 +1,18 @@
+## [1.17.0] - 2026-07-19
+### Added
+- **모니터링 지표 4종 — 크로스(edge) 트리거 추가 (Phase 3, 선택 항목)**
+  (`sharpe_ratio_monitor` v1.1.0, `sortino_ratio` v1.1.0, `calmar_ratio` v1.1.0,
+  `correlation_analysis` v1.1.0) — `direction` enum에 `cross_above`/`cross_below`
+  추가. 각 지표는 롤링 lookback window 기준 단일 값만 계산하는 구조라 "직전 값"이
+  따로 없어서, `prices[:-1]`(sharpe/sortino/calmar) 또는 한 봉 앞선 시점으로
+  재계산하는 `_compute_symbol_max_corr(trim=1)`(correlation_analysis)로 직전
+  시점 값을 구해 비교.
+  - CalmarRatio는 무한대(inf) 값을 유한값으로 취급하지 않아 크로스 판정에서도
+    제외(연속 상승으로 낙폭이 0에 수렴하면 calmar가 inf가 되는 기존 동작 유지).
+  - `symbol_results`에 `prev_*` 필드 추가(`prev_sharpe_ratio`, `prev_sortino_ratio`,
+    `prev_calmar_ratio`, `prev_max_correlation`). 기존 enum 값·기본값 불변(하위호환).
+    플러그인별 단위 테스트 3건씩 신규(돌파 통과/유지 침묵/부족 데이터).
+
 ## [1.16.0] - 2026-07-19
 ### Added
 - **밴드/레벨 터치형 지표 4종 — 크로스(edge) 트리거 추가 (Phase 2)**

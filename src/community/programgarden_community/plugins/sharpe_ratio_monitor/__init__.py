@@ -19,8 +19,8 @@ SHARPE_RATIO_MONITOR_SCHEMA = PluginSchema(
     id="SharpeRatioMonitor",
     name="Sharpe Ratio Monitor",
     category=PluginCategory.POSITION,
-    version="1.0.0",
-    description="Monitors annualized Sharpe ratio in real-time. Alerts when Sharpe falls below or exceeds threshold. Uses daily returns and risk-free rate adjustment.",
+    version="1.1.0",
+    description="Monitors annualized Sharpe ratio in real-time. Alerts when Sharpe falls below or exceeds threshold. Uses daily returns and risk-free rate adjustment. Use cross_above/cross_below to fire only at the moment Sharpe crosses the threshold (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {
@@ -37,8 +37,13 @@ SHARPE_RATIO_MONITOR_SCHEMA = PluginSchema(
         },
         "direction": {
             "type": "string", "default": "above", "title": "Direction",
-            "description": "above: good performance, below: poor performance",
-            "enum": ["above", "below"],
+            "description": (
+                "above: fires every evaluation while Sharpe stays above threshold (good performance), "
+                "below: fires every evaluation while Sharpe stays below threshold (poor performance), "
+                "cross_above: fires once at the moment Sharpe crosses over threshold (edge trigger), "
+                "cross_below: fires once at the moment Sharpe crosses under threshold"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
         },
     },
     required_data=["data"],
@@ -58,7 +63,7 @@ SHARPE_RATIO_MONITOR_SCHEMA = PluginSchema(
             "fields.lookback": "룩백 기간 (일)",
             "fields.risk_free_rate": "무위험이자율 (연율)",
             "fields.threshold": "샤프비율 임계치",
-            "fields.direction": "방향 (above: 양호, below: 부진)",
+            "fields.direction": "방향 (above: 양호 — 유지 중 매 평가마다 발생, below: 부진, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -149,12 +154,27 @@ async def sharpe_ratio_monitor_condition(
 
         current_price = prices[-1] if prices else None
         metrics = calculate_sharpe(prices, lookback, risk_free_rate)
+        prev_metrics = calculate_sharpe(prices[:-1], lookback, risk_free_rate)
 
-        symbol_results.append({"symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price})
+        symbol_results.append({
+            "symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price,
+            "prev_sharpe_ratio": prev_metrics["sharpe_ratio"],
+        })
         values.append({"symbol": symbol, "exchange": exchange, "time_series": []})
 
-        if metrics["sharpe_ratio"] is not None:
-            cond = metrics["sharpe_ratio"] > threshold if direction == "above" else metrics["sharpe_ratio"] < threshold
+        sharpe = metrics["sharpe_ratio"]
+        prev_sharpe = prev_metrics["sharpe_ratio"]
+        if sharpe is not None:
+            if direction == "above":
+                cond = sharpe > threshold
+            elif direction == "below":
+                cond = sharpe < threshold
+            elif direction == "cross_above":
+                cond = prev_sharpe is not None and prev_sharpe <= threshold and sharpe > threshold
+            elif direction == "cross_below":
+                cond = prev_sharpe is not None and prev_sharpe >= threshold and sharpe < threshold
+            else:
+                cond = False
             (passed if cond else failed).append(sym_dict)
         else:
             failed.append(sym_dict)

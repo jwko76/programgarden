@@ -30,9 +30,6 @@
   - [ ] rate-limit 정책 실측 (현재 KIS 기준 초당 20건 차용)
 
 ## 다음 작업 후보
-- [ ] **조건 플러그인 크로스 트리거 확대 — Phase 3 (선택)** (Phase 0/1/2는 완료, 아래 "완료됨" 참조)
-  - **모니터링 지표**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
-  - 공통 규칙: 기존 enum 값·기본값 불변(하위호환), 스키마 minor 버전 bump, prev 값 None(데이터 부족) 시 크로스 불통과, 플러그인별 단위테스트(돌파 통과/유지 침묵/부족 데이터)
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
 - [ ] **미래에셋증권** — 공개 REST 오픈API 미확인으로 보류 (개발자센터 공개 시 재검토)
@@ -40,6 +37,16 @@
 ---
 
 ## 완료됨
+
+- [x] **조건 플러그인 크로스 트리거 확대 — Phase 3 (모니터링 지표, 선택)** (2026-07-19, community v1.17.0)
+  - sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis 4종에 `cross_above`/`cross_below` 추가(각 v1.1.0)
+  - 각 지표는 롤링 lookback window 기준 단일 값만 계산하는 구조라 "직전 값"이 따로 없음 —
+    sharpe/sortino/calmar는 `prices[:-1]`로 한 봉 앞선 window를 재계산, correlation_analysis는
+    `_compute_symbol_max_corr(trim=1)` 헬퍼로 한 봉 이전 시점 population을 재계산해 비교
+  - CalmarRatio의 `inf`(연속 상승으로 낙폭 0 수렴 시 발생)는 크로스 판정에서도 유한값이 아니므로 제외
+  - `symbol_results`에 `prev_*` 필드 추가, 기존 enum·기본값 불변. 단위테스트 4파일 12건 신규,
+    community 전체 1269 passed(기존 파일 파서 28건 실패는 openpyxl 미설치로 무관), 회귀 0건
+  - docs/signal_dedup_migration_guide.md §7 갱신. 이로써 크로스 트리거 확대(Phase 0~3) 전부 완료
 
 - [x] **조건 플러그인 크로스 트리거 확대 — Phase 2 (밴드/레벨 터치형)** (2026-07-19, main, community v1.16.0)
   - bollinger_bands(`cross_below_lower`/`cross_above_upper`, v3.1.0), vwap(`cross_above`/`cross_below`, v1.1.0),

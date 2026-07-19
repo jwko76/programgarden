@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-07-19 (4) — 조건 플러그인 크로스 트리거 Phase 3(모니터링 지표, 선택) (community v1.17.0)
+
+**작업자**: Claude (jwko76 요청 — "phase 3 진행")
+
+Phase 2 완료 직후, TODO.md에 "선택 항목"으로 남아있던 모니터링 지표 4종에도
+동일 패턴을 적용해 크로스 트리거 확대(Phase 0~3)를 마무리.
+
+- **sharpe_ratio_monitor v1.1.0** / **sortino_ratio v1.1.0** / **calmar_ratio
+  v1.1.0**: `direction` enum에 `cross_above`/`cross_below` 추가. 셋 다 롤링
+  lookback window 기준 단일 값만 계산하는 구조(시계열 series가 없음)라 "직전
+  값"이 따로 없어서, `prices[:-1]`로 한 봉 앞선 window를 다시 계산해 prev
+  값을 구했다. CalmarRatio는 연속 상승으로 낙폭이 0에 수렴하면 `inf`가
+  나오는데, 이 값은 크로스 판정에서도 (기존 레벨 판정과 마찬가지로)
+  유한값이 아니므로 제외되도록 처리.
+- **correlation_analysis v1.1.0**: `direction` enum에 `cross_above`/
+  `cross_below` 추가. 두 종목(이상) population 기반 최대상관계수라 relative_strength와
+  같은 문제 — 신규 헬퍼 `_compute_symbol_max_corr(trim=N)`으로 공통 날짜의
+  마지막 N개를 제외하고 재계산, trim=1로 직전 시점 상관계수를 구해 비교.
+
+각 플러그인 `symbol_results`에 `prev_*` 필드 추가(투명성), 기존 enum·기본값
+불변(하위호환).
+
+**진행 판단**: 이 4개는 매매 신호가 아니라 전략/포트폴리오 상태 모니터링용이라
+Phase 0~2처럼 실제 알림 중복이 문제됐던 사례는 없었음(예방적 확장). Phase 0/1
+의 오실레이터형, Phase 2의 밴드/레벨 터치형과 마찬가지로 "prev 값 없으면 크로스
+불통과" 공통 규칙을 그대로 적용.
+
+테스트: 신규 4파일(`test_sharpe_ratio_monitor_cross_trigger.py`,
+`test_sortino_ratio_cross_trigger.py`, `test_calmar_ratio_cross_trigger.py`,
+`test_correlation_analysis_cross_trigger.py`) 12건 — 돌파 통과/유지 침묵/부족
+데이터 패턴(cross_above만 검증, cross_below는 대칭 로직이라 별도 테스트 생략 —
+relative_strength Phase 2 때와 동일 판단). community 전체 1269 passed(기존
+파일 파서 28건 실패는 openpyxl 미설치로 무관, 회귀 0건).
+
+문서: `docs/signal_dedup_migration_guide.md` §7에 Phase 3 표 추가,
+`src/community/CHANGELOG.md` 1.17.0 항목 신설. TODO.md "조건 플러그인 크로스
+트리거 확대"는 이번 항목으로 Phase 0~3 전부 완료 처리.
+
+---
+
 ## 2026-07-19 (3) — 조건 플러그인 크로스 트리거 Phase 2(밴드/레벨 터치형) (main, community v1.16.0)
 
 **작업자**: Claude (jwko76 요청 — TODO.md "다음 작업 후보" 3번 진행)
