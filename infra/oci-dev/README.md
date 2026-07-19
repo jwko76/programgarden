@@ -15,6 +15,27 @@
 | SSH | 22 포트, terraform.tfvars의 `ssh_ingress_cidr`(내 IP/32)만 허용 |
 | 키 | `~/.ssh/oci_dev` (로컬 Windows·WSL 공용, 커밋 금지) |
 
+## 서버 고정 IP 확인 방법 (3가지)
+
+브로커 화이트리스트 등록 시 필요한 IP는 아래 어느 방법으로든 확인한다 (같은 값).
+
+**방법 1 — Claude Code 세션에서 바로**: 프롬프트에 `!`를 붙여 입력
+```
+! terraform -chdir=infra/oci-dev output -raw instance_public_ip
+```
+
+**방법 2 — 별도 터미널 (PowerShell/Git Bash)**:
+```powershell
+cd D:\Work\VisualStudio\programgarden
+terraform -chdir=infra/oci-dev output -raw instance_public_ip
+```
+
+**방법 3 — OCI 웹 콘솔**: cloud.oracle.com → Compute → Instances →
+`programgarden-dev` → Public IP 항목 (Reserved로 표시)
+
+Reserved IP라 인스턴스를 재생성해도 값이 바뀌지 않는다.
+`terraform destroy`를 하면 IP도 해제되어 재등록이 필요하니 주의.
+
 ## 자주 쓰는 명령 (이 디렉터리에서)
 
 ```bash
@@ -56,7 +77,10 @@ KIWOOM_PAPER=1 .venv/bin/python src/finance/example/kiwoom/run_quotations.py
 
 ## 화이트리스트 등록 (사용자 수동, 1회)
 
-서버 고정 IP(`terraform output -raw instance_public_ip`)를 다음 두 곳에 등록:
+서버 고정 IP(위 "확인 방법" 참조)를 다음 두 곳에 등록:
 1. 키움 OpenAPI → 지정단말기(IP) 관리 — 실전 API용
-2. 빗썸 → API 키 설정 → 허용 IP 추가
+2. 빗썸 → 마이페이지 → API 관리 → 허용 IP 추가
 (운영서버 IP가 이미 등록돼 있다면 **추가**로 등록 — 교체 아님)
+
+> 2026-07-19 등록 완료 — 이 서버에서 키움 실전 토큰·시세·잔고,
+> 빗썸 개인 API(전체자산조회) 라이브 검증 통과.
