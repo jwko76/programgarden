@@ -5,6 +5,118 @@
 
 ---
 
+## 2026-07-19 — OCI 개발서버 프로비저닝 (infra/oci-dev, Terraform)
+
+**작업자**: Claude (jwko76 요청 — 키움/빗썸 IP 화이트리스트가 OCI 운영서버 기준이라
+로컬 검증 불가 → 고정 IP를 가진 OCI 개발서버 신설)
+
+### 배경
+- 키움 8050(지정단말기)·빗썸 "not allowed client IP"는 로컬 PC IP가 미등록이라 발생 —
+  사용자가 등록한 IP는 MonitoringLSStock OCI 운영서버 공인 IP (해당 프로젝트 WORKLOG 7/18 확인)
+- MonitoringLSStock docs/DEPLOYMENT.md의 OCI 구축 절차 참고, 단 콘솔 수동 대신 **Terraform**으로 코드화
+
+### 프로비저닝 (oci-vm 스킬 + ~/.oci 기존 자격증명 재사용)
+- 테넌시 현황 실측: 홈 리전 ap-osaka-1 단일 구독, 기존 A1.Flex 1/6(운영)+E2.1.Micro 1대
+  → **Always Free A1 잔여 3 OCPU/18GB 확인**
+- `infra/oci-dev/`: VCN/서브넷/IGW/보안목록 + **A1.Flex, Ubuntu 24.04(aarch64, Python 3.12)**
+  — Always Free 한도 내 ₩0. SSH ingress는 내 IP/32만 허용.
+  최초 2 OCPU/12GB로 생성 후 사용자 요청으로 **1 OCPU/6GB로 in-place 리사이즈**
+  (flex 셰이프 shape_config 변경 — IP·디스크·venv 유지, 약 2분)
+- **Reserved(고정) IP** 부여 — 브로커 화이트리스트 등록용, 인스턴스 재생성에도 유지
+  (Ubuntu 22.04→24.04 재생성으로 실증: IP 불변. 22.04는 Python 3.10이라 교체, 24.04 부트볼륨 50GB 필요로 -replace 사용)
+- 서버 구성: 코드 rsync(.git/.env 제외) + .env scp 이식(chmod 600, 내용 미열람) +
+  venv(core/finance editable + pytest 등)
+- **검증**: 서버에서 키움 모의 시세 전체(현재가/호가/일봉 600건) 라이브 통과 — 환경 배선 확인
+- 보안: tfvars/tfstate gitignore, OCID·IP는 로그 마스킹, 키 파일은 경로 참조만
+
+### 화이트리스트 등록 후 검증 (같은 날 완료)
+사용자가 개발서버 고정 IP를 키움 지정단말기·빗썸 허용 IP에 등록 → 개발서버에서:
+- **키움 실전**: 토큰 발급(8050 해소)·현재가/호가/일봉(600건)·잔고(kt00018 요약 수신) 통과
+- **빗썸 개인 API**: 전체자산조회 성공 (보유 통화 16종 수신, 수량은 미출력)
+- kt00010(주문가능): 실전에서 TR 실행 확인, 단 trde_tp="1"에 "매도가격이 하한가보다 낮습니다"
+  → trde_tp 1=매도 가능성 발견, 영업일 장중 재확인 예정 (TODO.md)
+- 사용자 요청으로 서버 A1.Flex 2/12 → **1/6 in-place 리사이즈** (IP·디스크·venv 유지)
+- README에 IP 확인 방법 3종(!, 터미널, OCI 콘솔) 문서화
+
+---
+
+## 2026-07-18 (2) — 키움 모의서버 1차 라이브 검증 + 응답 필드 교정 (feature/kiwoom-broker)
+
+**작업자**: Claude (jwko76이 .env에 키움 app key 등록 — 키 값은 열람·표출하지 않고 검증만 수행)
+
+### .env 키 구조
+실전 `KIWOOM_APPKEY/APPSECRET/ACCOUNT_NO` + 모의 `KIWOOM_MOCK_*` 분리 구조로 등록됨 —
+예제 공용 헬퍼 `example/kiwoom/_env.py` 신설, `KIWOOM_PAPER=1`(기본)이면 MOCK_* 키 자동 선택.
+
+### 모의서버(mockapi.kiwoom.com) 검증 결과
+- **토큰 발급 성공** (24h TTL, 파일캐시 복원 동작 확인)
+- **현재가 ka10001**: 추정 필드 11개 전부 실제 응답과 일치. 가격 필드에 등락 부호(+/-)
+  확인 → executor의 abs() 처리 적중. eps/roe/bps 등 재무 필드도 다수 수신
+- **호가 ka10004**: 최우선호가 필드가 `sel_fpr_bid`/`buy_fpr_bid`(fpr=first price)로 확인
+  → blocks 교정 (추정했던 `*_1th_pre_req_pric`은 없음). 2~10차는 `sel_2th_pre_bid` 형식
+- **일봉 ka10081**: 리스트 키 `stk_dt_pole_chart_qry`로 확인 → 교정 (추정 `stk_dt_pole` ✗).
+  캔들 내부 필드명은 전부 적중, 600건 수신, 일봉 가격에는 부호 없음
+- **잔고 kt00018**: 리스트 키 `acnt_evlt_remn_indv_tot`, 요약에 예수금(entr) 없음 →
+  `prsm_dpst_aset_amt`(추정예탁자산)로 교정, 손익률은 `tot_prft_rt`. 숫자는 zero-padded
+  문자열("000000010000000") — _to_float 정상 처리. 보유종목 0건이라 항목 내부 필드는 미확인
+- **주문가능 kt00010**: 모의서버 미지원 확인 (return_code=20, RC7006) — blocks 주석 반영
+- **주문 kt10000**: 주말이라 RC4010(모의투자 영업일이 아닙니다) — 요청 형식은 서버가
+  정상 해석, 접수 검증은 다음 영업일로 이월
+- **WebSocket**: 주소를 실전/모의 분리 + `/api/dostk/websocket` 경로로 교정 후
+  접속·LOGIN(return_code=0, REST 토큰 재사용)·REG 등록까지 성공. 데이터 프레임은 장중 확인 필요
+
+### 실전 서버
+토큰 발급이 `[8050:지정단말기 인증에 실패했습니다]`로 거부 — 코드가 아닌 계정 설정 이슈.
+사용자가 키움 OpenAPI 사이트에서 지정단말기 등록(또는 인증 해제) 후 재시도 필요.
+
+### 테스트
+finance 키움 59건을 확정 필드명 기반 fixture로 갱신 후 전부 통과.
+잔여 검증 항목은 TODO.md "보류 중" 갱신.
+
+---
+
+## 2026-07-18 — 키움증권 브로커 전체 연동 (feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
+
+**작업자**: Claude (jwko76 요청 — TODO.md "키움증권 브로커" 진행. KIS 패턴 복제)
+
+### finance SDK `kiwoom/` (커밋 af78fd8)
+TR 9종(현재가 ka10001 / 호가 ka10004 / 일봉 ka10081 / 잔고 kt00018 / 주문가능 kt00010 /
+현금매수 kt10000 / 현금매도 kt10001 / 정정 kt10002 / 취소 kt10003) + 실시간 2종
+(체결 0B / 주문체결통보 00), 단위테스트 59건. KIS와의 구조 차이를 반영:
+실전/모의가 tr_id 분기가 아닌 **도메인 전환**(api ↔ mockapi.kiwoom.com), 모든 TR이
+POST 단일 JSON 바디, 응답 봉투 return_code/return_msg, 토큰 발급 필드 secretkey.
+공식 문서 미확인 필드는 `TODO(실계좌 검증)` 주석으로 표시.
+
+### core 노드 6종 (커밋 9b84acc)
+`Kiwoom{Broker,Account,MarketData,HistoricalData,NewOrder,CancelOrder}Node` +
+`BrokerProvider.KIWOOM`, 레지스트리 등록, i18n(ko/en), AI 메타데이터
+(_usage/_features/_anti_patterns/_examples/_node_guide) 완비, 노드 테스트 322줄.
+멀티브로커 `(scope, provider)` 키로 LS·KIS와 국내주식 3사 공존.
+
+### executor 레이어 + 예제 + 문서 (이번 커밋)
+- `kiwoom_executors.py` 6종 (kis_executors 패턴) + executor.py `_init_kiwoom_executors` 등록
+- deep_fixtures: `kiwoom_account/market_data/historical_fixture`(KIS shape 재사용) +
+  `broker_connection_fixture` Kiwoom 분기 — deep_validate에서 클라이언트 생성 금지 보장
+- **KiwoomCancelOrderNode에 `symbol` 필드 추가** — 키움 취소 api-id(kt10003)는 KIS와
+  달리 종목코드(stk_cd) 필수인데 노드에 필드가 없던 불일치를 executor 구현 중 발견,
+  field_schema/i18n/입력포트/예제 스니펫까지 반영
+- finance `__init__.py`에 Kiwoom 최상위 export 추가 (`Kiwoom`, `kiwoom_*` 모듈 별칭,
+  `KiwoomReal` 등 — KIS 이름과 충돌하는 실시간 클래스는 `Kiwoom*` prefix로 별칭)
+- 워크플로우 예제 93-kiwoom-account / 94-kiwoom-market-data / 95-kiwoom-rsi-bot
+  (+.md) — deep_validate 3건 모두 통과, examples_validation 9건 통과
+- SDK 예제 `src/finance/example/kiwoom/` 4종 (quotations/balance/order_lifecycle/real_ccnl)
+- `docs/kiwoom_finance_guide.md` 신규, 00-workflow-guide 키움 섹션(스코프 표·출력 포트·멀티브로커) 추가
+- 테스트: deep_validate 키움 6건 신규 (fixture shape 3, no-real-api-call, 3사 멀티브로커,
+  account deep) — 전체 test_deep_validate 73 passed, core 키움 895 passed(스키마 완전성 포함)
+- 버전: finance 1.10.0→**1.11.0**, core 1.17.0→**1.18.0**, programgarden 1.27.0→**1.28.0**
+
+### 남은 것 (블로킹: 사용자 키움 app key 발급 대기)
+라이브 검증 전까지 `TODO(실계좌 검증)` 항목 유지 — 응답 필드명(잔고/현재가/일봉),
+trde_tp 코드값(지정가 0/시장가 3 추정), 전량취소 규칙, WebSocket 주소/메시지 구조,
+rate-limit 정책. 검증 시 blocks.py 필드명 교정만으로 대응 가능하도록 설계됨.
+
+---
+
 ## 2026-07-13 — 조건 플러그인 크로스 트리거 확대 (Phase 0/1) + MACD·MA Cross·WilliamsR 버그 수정 (feature/signal-cross-trigger)
 
 **작업자**: Claude (jwko76 요청 — TODO.md "조건 플러그인 크로스 트리거 확대" 진행)

@@ -1,21 +1,35 @@
 # TODO
 
-## 보류 중
+## 진행 중
 
-- [ ] **KIS 실전 주문 라이브 검증 — APBK0919 오류로 블로킹 (2026-07-13 시도)**
-  - `run_order_lifecycle_live.py` 실행 → 토큰 발급/현재가 조회 정상, 매수 주문에서
+- [ ] **KIS 실전 주문 라이브 검증 — 재시도 대기 (다음 개장일 장중)**
+  - 2026-07-13 시도: `run_order_lifecycle_live.py` 실행 → 토큰 발급/현재가 조회 정상, 매수 주문에서
     `장운영일자가 주문일과 상이합니다 (APBK0919)` 거부 (주문 미접수, 취소 단계 미실행 — 계좌에 걸린 주문 없음)
   - 코드(`tr_helpers.py`/`order/__init__.py`) 헤더·계좌번호 채움 로직 정상 확인, 같은 계좌로 잔고·매수가능 조회는 7/11 기성공
   - 사용자 확인: 이 계좌로 HTS/MTS 수동 매매 이력 있음 → "API 최초 이용 라우팅 미활성화" 가설 배제
-  - **다음 단계(사용자 확인 필요)**: KIS 홈페이지/앱 [트레이딩]→[Open API]→[KIS Developers]에서
-    "오픈API 서비스 신청"(약관동의+계좌연결) 완료 여부 확인 — app key 발급과 별개 절차일 수 있음
-  - 재시도 시: `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py` (WSL)
+  - **2026-07-18: 사용자가 KIS 홈페이지/앱에서 "오픈API 서비스 신청"(약관동의+계좌연결) 완료** — 원인으로 지목했던
+    항목 해소, 다음 개장일 장중에 재시도 예정 (자동 예약은 보안/환경 제약으로 보류 — 장중에 사용자가 직접 요청)
+  - 재시도 명령: `KIS_LIVE_ORDER_CONFIRM=YES .venv-bithumb/bin/python src/finance/example/kis/run_order_lifecycle_live.py` (WSL)
   - 실시간 체결가(`run_real_ccnl.py`, H0STCNT0)는 주문 이슈와 무관하니 별도로 먼저 검증 가능
   - 완료 기준: REST 7종 + 실시간 전부 라이브 검증 → CLAUDE.md/WORKLOG 갱신
 
-## 다음 작업 후보
+## 보류 중
 
-- [ ] **키움증권 브로커** — KIS와 동일 패턴으로 별도 브랜치에서 구현 (REST API openapi.kiwoom.com, appkey/secret→토큰 인증이 KIS와 유사. kis/ 패키지·Kis* 노드·kis_executors를 템플릿으로 복제). 사용자 app key 발급 대기 중
+- [ ] **키움증권 라이브 검증 — 잔여분** (2026-07-18 모의서버 1차 검증 완료, 아래 "완료됨" 참조)
+  - [ ] **주문 접수/체결** — 모의서버가 주말 거부(RC4010: 모의투자 영업일이 아닙니다). **다음 영업일 장중**
+    `KIWOOM_PAPER=1 .venv-bithumb/bin/python src/finance/example/kiwoom/run_order_lifecycle.py` (WSL) 재시도.
+    trde_tp 코드값(지정가 "0"/시장가 "3" 추정)·취소 전량 규칙(ord_qty="0" 추정)·주문 응답 필드 확인
+  - [ ] **장중 실시간 체결 데이터** — WS 접속·LOGIN·REG는 성공, 실제 0B 데이터 프레임 구조는 장중에만 확인 가능
+    (`run_real_ccnl.py`). 체결통보(00)는 주문과 함께 검증
+  - [ ] **잔고 보유종목 항목 필드** — 모의계좌에 보유 종목이 없어 `acnt_evlt_remn_indv_tot` 항목 내부 필드명 미확인.
+    모의 매수 체결 후 `run_balance.py`로 확인
+  - [x] ~~실전 서버 + 빗썸 개인 API IP 화이트리스트~~ — 2026-07-19 해소: OCI 개발서버 고정 IP 등록 후
+    키움 실전 토큰·시세(현재가/호가/일봉)·잔고(kt00018 요약) + 빗썸 전체자산조회 라이브 통과
+  - [ ] **주문가능(kt00010) trde_tp 코드 확인** — 실전에서 TR 실행은 확인됐으나 uv=255000, trde_tp="1"(매수로 추정)에
+    "매도가격이 하한가보다 낮습니다" 반환 → **trde_tp 1이 매도일 가능성**. 영업일 장중 재확인 후 blocks.py 주석 교정
+  - [ ] rate-limit 정책 실측 (현재 KIS 기준 초당 20건 차용)
+
+## 다음 작업 후보
 - [ ] **조건 플러그인 크로스 트리거 확대 — Phase 2/3** (Phase 0/1은 완료, 아래 "완료됨" 참조)
   - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
   - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
@@ -28,6 +42,23 @@
 ---
 
 ## 완료됨
+
+- [x] **키움증권 모의서버 1차 라이브 검증** (2026-07-18, feature/kiwoom-broker)
+  - 토큰 발급(24h TTL, 파일캐시 복원) / 현재가 ka10001(추정 필드 전부 적중, 가격 등락부호 확인) /
+    호가 ka10004(최우선호가는 `sel_fpr_bid`/`buy_fpr_bid`로 교정) /
+    일봉 ka10081(리스트 키 `stk_dt_pole_chart_qry`로 교정, 600건 수신) /
+    잔고 kt00018(리스트 키 `acnt_evlt_remn_indv_tot`, 예수금 없음 → `prsm_dpst_aset_amt`로 교정)
+  - WebSocket: `wss://mockapi.kiwoom.com:10000/api/dostk/websocket` 접속 + LOGIN return_code=0 + REG 정상
+    (실전/모의 호스트 분리, 경로 확정 — config.py 교정)
+  - .env 키 구조: 실전 `KIWOOM_*` / 모의 `KIWOOM_MOCK_*` 분리 — 예제 공용 `_env.py`로 자동 선택
+  - finance 키움 테스트 59건 확정 필드명으로 갱신 후 통과
+
+- [x] **키움증권 브로커 전체 연동** (2026-07-18, feature/kiwoom-broker) — v1.11.0/v1.18.0/v1.28.0
+  - finance SDK kiwoom/: TR 9종 + 실시간 2종 (도메인 전환식 실전/모의, POST 단일 바디, 토큰 파일캐시)
+  - core 노드 6종 (Kiwoom*) + BrokerProvider.KIWOOM + i18n + AI 메타데이터
+  - kiwoom_executors 6종 + deep fixtures — KiwoomCancelOrderNode symbol 필드 추가 (kt10003 종목코드 필수)
+  - 워크플로우 예제 93-95 (deep_validate 통과), SDK 예제 4종, docs/kiwoom_finance_guide.md
+  - 라이브 검증은 "보류 중" 참조 (app key 대기)
 
 - [x] **조건 플러그인 크로스 트리거 확대 — Phase 0/1** (2026-07-13, feature/signal-cross-trigger, community v1.15.0)
   - Phase 0 검증: aroon/coppock/trix/vortex/parabolic_sar/squeeze_momentum 정상.

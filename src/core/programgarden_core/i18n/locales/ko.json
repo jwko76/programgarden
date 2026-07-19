@@ -1364,5 +1364,37 @@
   "enums.kis_side.sell": "매도 (sell)",
   "enums.kis_order_type.limit": "지정가 (limit)",
   "enums.kis_order_type.market": "시장가 (market)",
-  "enums.broker_provider.koreainvestment.com": "한국투자증권"
+  "enums.broker_provider.koreainvestment.com": "한국투자증권",
+
+  "nodes.KiwoomBrokerNode.description": "키움증권(Kiwoom) OpenAPI 국내주식 연결을 설정합니다. 인증 게이트웨이 역할 — 하위 계좌, 시세, 주문 노드가 DAG 순회를 통해 자동으로 브로커 연결을 상속합니다. credential_id로 broker_kiwoom 인증 정보(appkey + appsecret + account_no)를 참조합니다. paper_trading=true 설정 시 키움 모의투자 서버(mockapi.kiwoom.com)로 접속합니다 — KIS와 달리 실전/모의는 tr_id 분기가 아닌 접속 도메인 자체 전환입니다. 같은 워크플로우에서 LS KoreaStockBrokerNode·KIS KisBrokerNode와 공존 가능합니다(프로바이더별 연결 분리). 일반적인 연결: StartNode → KiwoomBrokerNode → KiwoomAccountNode / KiwoomMarketDataNode / KiwoomNewOrderNode.",
+  "nodes.KiwoomBrokerNode.name": "키움증권 브로커",
+  "nodes.KiwoomAccountNode.description": "키움증권 주식 잔고·예수금·평가금액을 REST API 1회 조회로 가져옵니다 (api-id kt00018, 매수가능금액 kt00010). 출력: held_symbols (보유 종목코드 목록), balance (예수금·주문가능현금·총평가금액), positions (종목별 수량·매입가·평가손익). 상위 KiwoomBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.KiwoomAccountNode.name": "키움증권 계좌 조회",
+  "nodes.KiwoomMarketDataNode.description": "키움증권 국내주식 현재가를 REST API 1회 조회로 가져옵니다 (api-id ka10001). symbols 필드에 종목코드를 콤마 구분으로 입력합니다 (ex. 005930,000660). 빗썸 공개 API와 달리 키움 시세도 appkey 인증이 필요하므로 상위 KiwoomBrokerNode 연결이 필수입니다. 출력: values (종목별 현재가·등락률·거래량·PER/PBR). AI Agent 도구로 사용 가능.",
+  "nodes.KiwoomMarketDataNode.name": "키움증권 현재가",
+  "nodes.KiwoomHistoricalDataNode.description": "키움증권 국내주식 일봉 OHLCV 캔들을 조회합니다 (api-id ka10081). time_series 출력 포트는 ConditionNode(RSI/BollingerBands)에 바로 연결할 수 있는 [{symbol, exchange, time_series}] 형식을 반환하며, 지표 플러그인용으로 oldest-first 자동 정렬됩니다. 상위 KiwoomBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.KiwoomHistoricalDataNode.name": "키움증권 일봉 조회",
+  "nodes.KiwoomNewOrderNode.description": "키움증권 국내주식 현금 매수/매도 주문을 실행합니다 (매수 api-id kt10000, 매도 api-id kt10001 — 실전/모의는 브로커의 paper_trading 설정에 따라 접속 도메인이 전환되며 api-id는 공용). 주문 방향(buy/sell)과 방식(limit: 지정가, market: 시장가)을 설정합니다. 최소 5초 간격 제한 및 중복 주문 방지 기능 내장. 재시도 기본 비활성화. 상위 KiwoomBrokerNode 연결 필수. AI Agent 도구로 사용 가능.",
+  "nodes.KiwoomNewOrderNode.name": "키움증권 신규주문",
+  "nodes.KiwoomCancelOrderNode.description": "키움증권 미체결 주문을 취소합니다 (취소 전용 api-id kt10003 — 키움은 정정(kt10002)과 취소가 별개 api-id로 분리되어 있으며 이 노드는 취소 전용). original_order_no 필드에 취소할 주문번호를, symbol 필드에 해당 주문의 종목코드를 바인딩하세요 (키움 취소는 KIS와 달리 종목코드 필수). quantity 생략 시 잔량 전부를 취소합니다. 출력: cancel_result (취소 결과), cancelled_order_no (취소된 주문번호). 최소 5초 간격 제한 적용. 상위 KiwoomBrokerNode 연결 필수.",
+  "nodes.KiwoomCancelOrderNode.name": "키움증권 취소주문",
+
+  "fields.KiwoomBrokerNode.credential_id": "키움증권 인증정보를 선택하세요 (broker_kiwoom 타입: appkey, appsecret, account_no)",
+  "fields.KiwoomBrokerNode.paper_trading": "모의투자 모드 (true: 모의투자 서버 mockapi.kiwoom.com, false: 실전 서버 api.kiwoom.com)",
+  "fields.KiwoomMarketDataNode.symbols": "종목코드 (콤마 구분 6자리, ex. 005930,000660)",
+  "fields.KiwoomHistoricalDataNode.symbol": "종목코드 (6자리, ex. 005930)",
+  "fields.KiwoomHistoricalDataNode.count": "조회할 일봉 수 (1~100)",
+  "fields.KiwoomNewOrderNode.side": "주문 방향 (buy: 매수, sell: 매도)",
+  "fields.KiwoomNewOrderNode.order_type": "주문 방식 (limit: 지정가, market: 시장가)",
+  "fields.KiwoomNewOrderNode.order": "주문 정보 {symbol, quantity, price?}",
+  "fieldNames.KiwoomNewOrderNode.order": "주문 정보",
+  "fields.KiwoomCancelOrderNode.original_order_no": "취소할 키움증권 주문번호",
+  "fields.KiwoomCancelOrderNode.symbol": "취소할 주문의 종목코드 (6자리) — 키움 취소는 종목코드 필수",
+  "fields.KiwoomCancelOrderNode.quantity": "취소 수량 (생략 시 전량 취소)",
+
+  "enums.kiwoom_side.buy": "매수 (buy)",
+  "enums.kiwoom_side.sell": "매도 (sell)",
+  "enums.kiwoom_order_type.limit": "지정가 (limit)",
+  "enums.kiwoom_order_type.market": "시장가 (market)",
+  "enums.broker_provider.kiwoom.com": "키움증권"
 }

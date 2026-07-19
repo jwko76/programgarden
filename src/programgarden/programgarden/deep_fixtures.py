@@ -352,7 +352,20 @@ def broker_connection_fixture(
                 "secret_key": "DEEP_VALIDATE_SECRET_KEY",
             },
         }
-    # 주의: "Kis" 분기는 "Korea" 분기보다 먼저 와야 함 (둘 다 korea_stock 스코프)
+    # 주의: "Kiwoom"/"Kis" 분기는 "Korea" 분기보다 먼저 와야 함 (모두 korea_stock 스코프)
+    if "Kiwoom" in node_type:
+        return {
+            "connected": True,
+            "connection": {
+                "provider": "kiwoom.com",
+                "product": "korea_stock",
+                "paper_trading": bool(config.get("paper_trading", False)),
+                "appkey": "DEEP_VALIDATE_APPKEY",
+                "appsecret": "DEEP_VALIDATE_APPSECRET",
+                "account_no": "DEEP_VALIDATE_ACCOUNT",
+                "account_product_code": "01",
+            },
+        }
     if "Kis" in node_type:
         return {
             "connected": True,
@@ -529,6 +542,21 @@ def kis_historical_fixture(symbol: str = "005930", n: int = 30) -> Dict[str, Any
     time_series = [{"symbol": symbol, "exchange": "KRX", "time_series": candles}]
     # values: 최신→과거 순 (API 응답 방향)
     return {"values": list(reversed(candles)), "time_series": time_series}
+
+
+def kiwoom_account_fixture() -> Dict[str, Any]:
+    """KiwoomAccountNode deep fixture — KIS와 동일한 출력 shape."""
+    return kis_account_fixture()
+
+
+def kiwoom_market_data_fixture(symbols_raw: str = "005930") -> Dict[str, Any]:
+    """KiwoomMarketDataNode deep fixture — KIS와 동일한 출력 shape."""
+    return kis_market_data_fixture(symbols_raw)
+
+
+def kiwoom_historical_fixture(symbol: str = "005930", n: int = 30) -> Dict[str, Any]:
+    """KiwoomHistoricalDataNode deep fixture — KIS와 동일한 출력 shape."""
+    return kis_historical_fixture(symbol, n)
 
 
 def _schema_default_value(schema: Any) -> Any:

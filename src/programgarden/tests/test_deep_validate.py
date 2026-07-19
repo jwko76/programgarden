@@ -1216,3 +1216,213 @@ async def test_kis_historical_fixture_shape():
     # time_series는 oldest-first — 날짜 오름차순
     assert candles[0]["date"] < candles[-1]["date"]
     assert all("close" in c for c in candles)
+
+
+# ============================================================
+# Kiwoom (키움증권 국내주식) deep_validate tests
+# ============================================================
+
+def _kiwoom_credentials() -> list:
+    return [
+        {
+            "credential_id": "kiwoom_cred",
+            "type": "broker_kiwoom",
+            "data": [
+                {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                {"key": "account_no", "value": "", "type": "text", "label": "계좌번호"},
+            ],
+        }
+    ]
+
+
+def kiwoom_account_workflow() -> dict:
+    """start → KiwoomBroker(모의) → KiwoomAccount."""
+    return {
+        "id": "wf-kiwoom-account",
+        "name": "kiwoom account deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "broker", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred", "paper_trading": True},
+            {"id": "account", "type": "KiwoomAccountNode"},
+        ],
+        "edges": [
+            {"from": "start", "to": "broker"},
+            {"from": "broker", "to": "account"},
+        ],
+        "credentials": _kiwoom_credentials(),
+    }
+
+
+def kiwoom_order_workflow() -> dict:
+    """start → KiwoomBroker(모의) → KiwoomAccount → KiwoomNewOrder → KiwoomCancelOrder."""
+    return {
+        "id": "wf-kiwoom-order",
+        "name": "kiwoom order deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "broker", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred", "paper_trading": True},
+            {"id": "account", "type": "KiwoomAccountNode"},
+            {
+                "id": "buy",
+                "type": "KiwoomNewOrderNode",
+                "side": "buy",
+                "order_type": "limit",
+                "order": {"symbol": "005930", "quantity": "10", "price": "60000"},
+            },
+            {
+                "id": "cancel",
+                "type": "KiwoomCancelOrderNode",
+                "original_order_no": "{{ nodes.buy.result.order_no }}",
+                "symbol": "{{ nodes.buy.result.symbol }}",
+            },
+        ],
+        "edges": [
+            {"from": "start", "to": "broker"},
+            {"from": "broker", "to": "account"},
+            {"from": "account", "to": "buy"},
+            {"from": "buy", "to": "cancel"},
+        ],
+        "credentials": _kiwoom_credentials(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_account_deep_validate_passes():
+    """KiwoomBrokerNode → KiwoomAccountNode must deep-validate cleanly.
+    No real API call should be made — fixture is returned instead."""
+    pg = ProgramGarden()
+    result = await asyncio.wait_for(
+        pg.executor.deep_validate(kiwoom_account_workflow(), timeout=12.0),
+        timeout=20.0,
+    )
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_order_deep_validate_no_real_api_call():
+    """Deep-validating a Kiwoom order workflow must NOT call the real Kiwoom API.
+    토큰 발급 자체가 라이브 호출이므로 _make_kiwoom_client는 절대 호출되면 안 됩니다."""
+    pg = ProgramGarden()
+
+    import programgarden.kiwoom_executors as kw_mod
+
+    def _boom(*args, **kwargs):  # pragma: no cover
+        raise AssertionError("_make_kiwoom_client must NOT be called in deep_validate")
+
+    with patch.object(kw_mod, "_make_kiwoom_client", side_effect=_boom) as mock_client:
+        result = await asyncio.wait_for(
+            pg.executor.deep_validate(kiwoom_order_workflow(), timeout=12.0),
+            timeout=20.0,
+        )
+
+    assert mock_client.call_count == 0, "Kiwoom API must never be called in deep mode"
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_ls_kis_three_broker_deep_validate_passes():
+    """LS + KIS + 키움 3사 브로커 공존 워크플로우가 deep-validate를 통과해야 합니다.
+    각 계좌 노드는 자기 프로바이더의 connection에 바인딩됩니다."""
+    pg = ProgramGarden()
+    wf = {
+        "id": "wf-kiwoom-ls-kis-multi",
+        "name": "kiwoom ls kis multi broker deep",
+        "nodes": [
+            {"id": "start", "type": "StartNode"},
+            {"id": "ls_broker", "type": "KoreaStockBrokerNode", "credential_id": "ls_cred"},
+            {"id": "kis_broker", "type": "KisBrokerNode", "credential_id": "kis_cred", "paper_trading": True},
+            {"id": "kiwoom_broker", "type": "KiwoomBrokerNode", "credential_id": "kiwoom_cred", "paper_trading": True},
+            {"id": "ls_account", "type": "KoreaStockAccountNode"},
+            {"id": "kis_account", "type": "KisAccountNode"},
+            {"id": "kiwoom_account", "type": "KiwoomAccountNode"},
+        ],
+        "edges": [
+            {"from": "start", "to": "ls_broker"},
+            {"from": "start", "to": "kis_broker"},
+            {"from": "start", "to": "kiwoom_broker"},
+            {"from": "ls_broker", "to": "ls_account"},
+            {"from": "kis_broker", "to": "kis_account"},
+            {"from": "kiwoom_broker", "to": "kiwoom_account"},
+        ],
+        "credentials": _kiwoom_credentials() + _kis_credentials() + [
+            {
+                "credential_id": "ls_cred",
+                "type": "broker_ls_korea_stock",
+                "data": [
+                    {"key": "appkey", "value": "", "type": "password", "label": "App Key"},
+                    {"key": "appsecret", "value": "", "type": "password", "label": "App Secret"},
+                ],
+            }
+        ],
+    }
+    result = await asyncio.wait_for(
+        pg.executor.deep_validate(wf, timeout=12.0),
+        timeout=20.0,
+    )
+    assert result.is_valid, [e.short() for e in result.errors]
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_account_fixture_shape():
+    """KiwoomAccountNodeExecutor in deep mode returns correct fixture shape."""
+    from programgarden.kiwoom_executors import KiwoomAccountNodeExecutor
+
+    ctx = make_deep_context()
+    ex = KiwoomAccountNodeExecutor()
+    out = await ex.execute(
+        node_id="account",
+        node_type="KiwoomAccountNode",
+        config={"connection": {"provider": "kiwoom.com", "appkey": "x", "appsecret": "y"}},
+        context=ctx,
+    )
+    assert "balance" in out
+    assert "positions" in out
+    assert "held_symbols" in out
+    assert out["balance"]["orderable_amount"] > 0
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_market_data_fixture_shape():
+    """KiwoomMarketDataNodeExecutor in deep mode returns correct fixture shape."""
+    from programgarden.kiwoom_executors import KiwoomMarketDataNodeExecutor
+
+    ctx = make_deep_context()
+    ex = KiwoomMarketDataNodeExecutor()
+    out = await ex.execute(
+        node_id="market",
+        node_type="KiwoomMarketDataNode",
+        config={"symbols": "005930,000660"},
+        context=ctx,
+    )
+    assert "values" in out
+    values = out["values"]
+    assert len(values) == 2
+    assert values[0]["symbol"] == "005930"
+    assert values[1]["symbol"] == "000660"
+    assert all("current_price" in v for v in values)
+
+
+@pytest.mark.asyncio
+async def test_kiwoom_historical_fixture_shape():
+    """KiwoomHistoricalDataNodeExecutor in deep mode returns ConditionNode-ready shape."""
+    from programgarden.kiwoom_executors import KiwoomHistoricalDataNodeExecutor
+
+    ctx = make_deep_context()
+    ex = KiwoomHistoricalDataNodeExecutor()
+    out = await ex.execute(
+        node_id="candles",
+        node_type="KiwoomHistoricalDataNode",
+        config={"symbol": "005930", "count": 30},
+        context=ctx,
+    )
+    assert "values" in out and "time_series" in out
+    series = out["time_series"]
+    assert len(series) == 1
+    assert series[0]["symbol"] == "005930"
+    assert series[0]["exchange"] == "KRX"
+    candles = series[0]["time_series"]
+    assert len(candles) == 30
+    # time_series는 oldest-first — 날짜 오름차순
+    assert candles[0]["date"] < candles[-1]["date"]
+    assert all("close" in c for c in candles)
