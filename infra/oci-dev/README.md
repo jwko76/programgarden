@@ -9,7 +9,7 @@
 | 항목 | 값 |
 |------|-----|
 | 리전 | ap-osaka-1 (테넌시 홈 리전, 단일 구독) |
-| 셰이프 | VM.Standard.A1.Flex — 2 OCPU / 12GB (Always Free 한도 내, 운영 1/6 사용 후 잔여분) |
+| 셰이프 | VM.Standard.A1.Flex — 1 OCPU / 6GB (Always Free 한도 내. 운영 1/6과 합쳐 2/12 사용, 잔여 2 OCPU/12GB) |
 | OS | Canonical Ubuntu 24.04 (aarch64) — Python 3.12 기본 탑재 |
 | 퍼블릭 IP | **Reserved(고정)** — 인스턴스 재생성에도 유지. 키움 지정단말기·빗썸 화이트리스트에 이 IP를 등록 |
 | SSH | 22 포트, terraform.tfvars의 `ssh_ingress_cidr`(내 IP/32)만 허용 |

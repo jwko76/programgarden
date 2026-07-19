@@ -18,8 +18,10 @@
 ### 프로비저닝 (oci-vm 스킬 + ~/.oci 기존 자격증명 재사용)
 - 테넌시 현황 실측: 홈 리전 ap-osaka-1 단일 구독, 기존 A1.Flex 1/6(운영)+E2.1.Micro 1대
   → **Always Free A1 잔여 3 OCPU/18GB 확인**
-- `infra/oci-dev/`: VCN/서브넷/IGW/보안목록 + **A1.Flex 2 OCPU/12GB, Ubuntu 24.04(aarch64, Python 3.12)**
-  — Always Free 한도 내 ₩0. SSH ingress는 내 IP/32만 허용
+- `infra/oci-dev/`: VCN/서브넷/IGW/보안목록 + **A1.Flex, Ubuntu 24.04(aarch64, Python 3.12)**
+  — Always Free 한도 내 ₩0. SSH ingress는 내 IP/32만 허용.
+  최초 2 OCPU/12GB로 생성 후 사용자 요청으로 **1 OCPU/6GB로 in-place 리사이즈**
+  (flex 셰이프 shape_config 변경 — IP·디스크·venv 유지, 약 2분)
 - **Reserved(고정) IP** 부여 — 브로커 화이트리스트 등록용, 인스턴스 재생성에도 유지
   (Ubuntu 22.04→24.04 재생성으로 실증: IP 불변. 22.04는 Python 3.10이라 교체, 24.04 부트볼륨 50GB 필요로 -replace 사용)
 - 서버 구성: 코드 rsync(.git/.env 제외) + .env scp 이식(chmod 600, 내용 미열람) +
