@@ -18,8 +18,8 @@ RELATIVE_STRENGTH_SCHEMA = PluginSchema(
     id="RelativeStrength",
     name="Relative Strength",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Compares asset performance against a benchmark over a lookback period. Identifies leaders and laggards for rotation strategies.",
+    version="1.1.0",
+    description="Compares asset performance against a benchmark over a lookback period. Identifies leaders and laggards for rotation strategies. Use cross_above/cross_below to fire only at the moment the RS score crosses the threshold (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {
@@ -53,8 +53,13 @@ RELATIVE_STRENGTH_SCHEMA = PluginSchema(
             "type": "string",
             "default": "above",
             "title": "Direction",
-            "description": "above: outperformers, below: underperformers",
-            "enum": ["above", "below"],
+            "description": (
+                "above: fires every evaluation while RS score stays above threshold (outperformers), "
+                "below: fires every evaluation while RS score stays below threshold (underperformers), "
+                "cross_above: fires once at the moment RS score crosses over threshold (edge trigger), "
+                "cross_below: fires once at the moment RS score crosses under threshold"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
         },
     },
     required_data=["data"],
@@ -75,10 +80,66 @@ RELATIVE_STRENGTH_SCHEMA = PluginSchema(
             "fields.benchmark_symbol": "벤치마크 종목",
             "fields.rank_method": "순위 산정 방식 (백분위/Z점수/원시값)",
             "fields.threshold": "통과 기준값",
-            "fields.direction": "방향 (above: 아웃퍼포머, below: 언더퍼포머)",
+            "fields.direction": "방향 (above: 아웃퍼포머 — 유지 중 매 평가마다 발생, below: 언더퍼포머, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
         },
     },
 )
+
+
+def _rank_relative_strength(
+    symbol_data_map: Dict[str, List[Dict[str, Any]]],
+    symbols_list: List[Any],
+    benchmark_symbol: str,
+    lookback: int,
+    rank_method: str,
+    close_field: str,
+    date_field: str,
+    trim: int = 0,
+) -> Dict[str, float]:
+    """symbol_data_map 전체에서 최근 trim개 봉을 제외한 시점 기준 RS 점수 산출.
+
+    cross_above/cross_below는 "직전 봉 시점"의 순위를 알아야 해서, 전체 종목·벤치마크를
+    동일하게 한 봉씩 밀어(trim=1) 재계산한 뒤 현재(trim=0) 점수와 비교한다.
+    """
+    def _prices(sym: str) -> List[float]:
+        rows_sorted = sorted(symbol_data_map.get(sym, []), key=lambda x: x.get(date_field, ""))
+        if trim:
+            rows_sorted = rows_sorted[:-trim] if len(rows_sorted) > trim else []
+        return [float(r.get(close_field, 0)) for r in rows_sorted if r.get(close_field) is not None]
+
+    benchmark_return = 0.0
+    bm_prices = _prices(benchmark_symbol)
+    if len(bm_prices) > lookback:
+        benchmark_return = (bm_prices[-1] - bm_prices[-lookback - 1]) / bm_prices[-lookback - 1] * 100
+
+    rs_raw_map: Dict[str, float] = {}
+    for sym_info in symbols_list:
+        symbol = sym_info.get("symbol", "") if isinstance(sym_info, dict) else str(sym_info)
+        if symbol == benchmark_symbol:
+            continue
+        prices = _prices(symbol)
+        if len(prices) <= lookback:
+            continue
+        asset_return = (prices[-1] - prices[-lookback - 1]) / prices[-lookback - 1] * 100
+        rs_raw_map[symbol] = asset_return - benchmark_return
+
+    if not rs_raw_map:
+        return {}
+
+    raw_values = list(rs_raw_map.values())
+    mean_rs = sum(raw_values) / len(raw_values)
+    std_rs = (sum((v - mean_rs) ** 2 for v in raw_values) / len(raw_values)) ** 0.5 if len(raw_values) > 1 else 1.0
+
+    scores: Dict[str, float] = {}
+    for symbol, rs_raw in rs_raw_map.items():
+        if rank_method == "percentile":
+            below_count = sum(1 for v in raw_values if v <= rs_raw)
+            scores[symbol] = round(below_count / len(raw_values) * 100, 2)
+        elif rank_method == "z_score":
+            scores[symbol] = round((rs_raw - mean_rs) / std_rs, 2) if std_rs > 0 else 0.0
+        else:
+            scores[symbol] = round(rs_raw, 2)
+    return scores
 
 
 async def relative_strength_condition(
@@ -165,6 +226,13 @@ async def relative_strength_condition(
         rs_raw = asset_return - benchmark_return
         rs_scores.append({"symbol": symbol, "exchange": exchange, "rs_raw": rs_raw, "asset_return": asset_return})
 
+    # cross_above/cross_below는 직전 봉 시점 랭킹이 필요
+    prev_rs_scores: Dict[str, float] = {}
+    if direction in ("cross_above", "cross_below"):
+        prev_rs_scores = _rank_relative_strength(
+            symbol_data_map, symbols, benchmark_symbol, lookback, rank_method, close_field, date_field, trim=1,
+        )
+
     # percentile/z_score 계산
     if rs_scores:
         raw_values = [s["rs_raw"] for s in rs_scores]
@@ -186,10 +254,18 @@ async def relative_strength_condition(
             else:
                 rs_score = round(rs_raw, 2)
 
+            prev_rs_score = prev_rs_scores.get(symbol)
+
             if direction == "above":
                 passed_condition = rs_score > threshold
-            else:
+            elif direction == "below":
                 passed_condition = rs_score < threshold
+            elif direction == "cross_above":
+                passed_condition = prev_rs_score is not None and prev_rs_score <= threshold and rs_score > threshold
+            elif direction == "cross_below":
+                passed_condition = prev_rs_score is not None and prev_rs_score >= threshold and rs_score < threshold
+            else:
+                passed_condition = False
 
             if passed_condition:
                 passed.append(sym_dict)
@@ -201,6 +277,7 @@ async def relative_strength_condition(
                 "rs_score": rs_score, "rs_raw": round(rs_raw, 2),
                 "asset_return": round(asset_return, 2),
                 "benchmark_return": round(benchmark_return, 2),
+                "prev_rs_score": prev_rs_score,
             })
 
             # time_series

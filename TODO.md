@@ -30,9 +30,8 @@
   - [ ] rate-limit 정책 실측 (현재 KIS 기준 초당 20건 차용)
 
 ## 다음 작업 후보
-- [ ] **조건 플러그인 크로스 트리거 확대 — Phase 2/3** (Phase 0/1은 완료, 아래 "완료됨" 참조)
-  - **Phase 2 — 밴드/레벨 터치형**: bollinger_bands(`cross_below_lower`/`cross_above_upper`), vwap, cmf(accumulation/distribution 진입 순간), relative_strength — 밴드는 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격 모두 필요
-  - **Phase 3 — 모니터링 지표 (선택)**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
+- [ ] **조건 플러그인 크로스 트리거 확대 — Phase 3 (선택)** (Phase 0/1/2는 완료, 아래 "완료됨" 참조)
+  - **모니터링 지표**: sharpe_ratio_monitor, sortino_ratio, calmar_ratio, correlation_analysis — 알림 쓰임새 있으면 추가
   - 공통 규칙: 기존 enum 값·기본값 불변(하위호환), 스키마 minor 버전 bump, prev 값 None(데이터 부족) 시 크로스 불통과, 플러그인별 단위테스트(돌파 통과/유지 침묵/부족 데이터)
 - [ ] **Community 플러그인 추가** — upstream에서 TrailingStop v2.1.0 이후 신규 전략 검토
 - [ ] **deep type-aware validation Phase 4+** — upstream 로드맵 추적
@@ -41,6 +40,17 @@
 ---
 
 ## 완료됨
+
+- [x] **조건 플러그인 크로스 트리거 확대 — Phase 2 (밴드/레벨 터치형)** (2026-07-19, main, community v1.16.0)
+  - bollinger_bands(`cross_below_lower`/`cross_above_upper`, v3.1.0), vwap(`cross_above`/`cross_below`, v1.1.0),
+    cmf(`cross_accumulation`/`cross_distribution`, v1.1.0), relative_strength(`cross_above`/`cross_below`, v1.1.0) 4종 추가
+  - RelativeStrength는 population(벤치마크 포함) 전체 랭킹이 매 봉 재계산되는 구조라 "직전 값"이 따로 없음 —
+    전체를 한 봉 이전 시점으로 다시 랭킹매기는 `_rank_relative_strength` 헬퍼 신설(trim 파라미터로 최근 N봉 제외)
+  - 볼린저는 표준 2-std 밴드가 선형 하락/상승으로는 수학적으로 거의 돌파되지 않음을 확인(평균 지연 2d vs 2-std 폭 2.83d) —
+    테스트 데이터는 std_dev=1.0으로 설계(스키마 허용 범위 내)
+  - `symbol_results`에 `prev_*` 필드 추가, 기존 enum·기본값 불변. 단위테스트 4파일 18건 신규,
+    community 전체 1257 passed(기존 파일 파서 28건 실패는 openpyxl 미설치로 무관), 회귀 0건
+  - docs/signal_dedup_migration_guide.md §7 갱신. Phase 3(모니터링)은 위 "다음 작업 후보"로 이월
 
 - [x] **KIS 확장 (MVP 이후 보류분)** (2026-07-19, feature/kis-extensions) — finance 1.12.0 / core 1.19.0 / programgarden 1.29.0
   - hashkey 헤더: `/uapi/hashkey` 발급 + POST 주문 TR 자동 첨부 (`use_hashkey` 옵션, 발급 실패해도 주문은 진행)

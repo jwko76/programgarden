@@ -19,8 +19,8 @@ CMF_SCHEMA = PluginSchema(
     id="CMF",
     name="Chaikin Money Flow",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Measures accumulation and distribution using volume-weighted price. Positive CMF indicates accumulation (buying), negative indicates distribution (selling). Complements OBV.",
+    version="1.1.0",
+    description="Measures accumulation and distribution using volume-weighted price. Positive CMF indicates accumulation (buying), negative indicates distribution (selling). Complements OBV. Use cross_accumulation/cross_distribution to fire only at the moment CMF enters the zone (edge trigger) instead of on every evaluation while it stays inside.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -43,8 +43,13 @@ CMF_SCHEMA = PluginSchema(
             "type": "string",
             "default": "accumulation",
             "title": "Direction",
-            "description": "accumulation: CMF > threshold, distribution: CMF < -threshold",
-            "enum": ["accumulation", "distribution"],
+            "description": (
+                "accumulation: fires every evaluation while CMF > threshold, "
+                "distribution: fires every evaluation while CMF < -threshold, "
+                "cross_accumulation: fires once at the moment CMF crosses over threshold into accumulation (edge trigger), "
+                "cross_distribution: fires once at the moment CMF crosses under -threshold into distribution"
+            ),
+            "enum": ["accumulation", "distribution", "cross_accumulation", "cross_distribution"],
         },
     },
     required_data=["data"],
@@ -61,7 +66,7 @@ CMF_SCHEMA = PluginSchema(
             "description": "거래량 가중 가격으로 매집과 분산을 측정합니다. 양의 CMF는 매집(매수세), 음의 CMF는 분산(매도세)을 나타냅니다.",
             "fields.period": "CMF 계산 기간",
             "fields.threshold": "매집/분산 기준값",
-            "fields.direction": "방향 (accumulation: 매집, distribution: 분산)",
+            "fields.direction": "방향 (accumulation: 매집 — 유지 중 매 평가마다 발생, distribution: 분산, cross_accumulation: 매집 진입 순간 1회 발생, cross_distribution: 분산 진입 순간 1회 발생)",
         },
     },
 )
@@ -239,14 +244,28 @@ async def cmf_condition(
         values.append({"symbol": symbol, "exchange": exchange, "time_series": time_series})
 
         current_cmf = cmf_series[-1]["cmf"]
+        prev_cmf = cmf_series[-2]["cmf"] if len(cmf_series) >= 2 else None
         symbol_results.append({
             "symbol": symbol, "exchange": exchange, "cmf": current_cmf, "mfv": cmf_series[-1]["mfv"],
+            "prev_cmf": prev_cmf,
         })
 
         if direction == "accumulation":
             passed_condition = current_cmf is not None and current_cmf > threshold
-        else:
+        elif direction == "distribution":
             passed_condition = current_cmf is not None and current_cmf < -threshold
+        elif direction == "cross_accumulation":
+            passed_condition = (
+                prev_cmf is not None and current_cmf is not None
+                and prev_cmf <= threshold and current_cmf > threshold
+            )
+        elif direction == "cross_distribution":
+            passed_condition = (
+                prev_cmf is not None and current_cmf is not None
+                and prev_cmf >= -threshold and current_cmf < -threshold
+            )
+        else:
+            passed_condition = False
 
         (passed if passed_condition else failed).append(sym_dict)
 

@@ -113,7 +113,7 @@ job = pg.run(workflow, context={"dry_run": True}, wait=True, timeout=60)
 - [ ] 회복(≥30) 후 재돌파 시 알림 다시 수신
 - [ ] 매매용 ConditionNode는 레벨 트리거 그대로인지 확인
 
-## 7. 다른 지표 크로스 모드 현황 (2026-07-13 기준)
+## 7. 다른 지표 크로스 모드 현황 (2026-07-19 기준)
 
 **레벨형 지표 — 크로스 모드 지원 (v1.15.0)**
 
@@ -128,6 +128,20 @@ job = pg.run(workflow, context={"dry_run": True}, wait=True, timeout=60)
 | ZScore | `cross_below` / `cross_above` |
 | MeanReversion | `cross_oversold` / `cross_overbought` |
 
+**밴드/레벨 터치형 지표 — 크로스 모드 지원 (v1.16.0, Phase 2)**
+
+| 플러그인 | 크로스 enum 값 |
+|---------|----------------|
+| BollingerBands | `cross_below_lower` / `cross_above_upper` |
+| VWAP | `cross_above` / `cross_below` |
+| CMF | `cross_accumulation` / `cross_distribution` |
+| RelativeStrength | `cross_above` / `cross_below` |
+
+밴드형은 "가격 vs 밴드값" 비교라 직전 캔들의 밴드·가격이 모두 필요. RelativeStrength는
+population 전체(벤치마크 포함) 랭킹을 한 봉 이전 시점으로 재계산해 비교(`_rank_relative_strength`
+헬퍼) — 데이터가 `lookback+1`개뿐이면(직전 시점엔 lookback을 못 채움) prev 점수가 없어
+크로스는 통과하지 않는다.
+
 **이미 크로스 이벤트형이라 그대로 쓰면 되는 지표** — Stochastic(`oversold`/`overbought`는
 %K/%D 교차 기준이라 이미 엣지 트리거), MACD(`bullish_cross`/`bearish_cross`, v3.1.0에서
 버그 수정 — 과거엔 레벨 체크였음), MovingAverageCross(`golden`/`dead`, 마찬가지로
@@ -136,8 +150,8 @@ TRIX(`bullish_cross`/`bearish_cross`), VortexIndicator(`bullish_cross`/`bearish_
 ParabolicSAR(`bullish_reversal`/`bearish_reversal`), SqueezeMomentum(`squeeze_fire_long`/
 `squeeze_fire_short`).
 
-**아직 레벨형만 있는 지표** — Bollinger Bands, VWAP, CMF, RelativeStrength 등
-(TODO.md "조건 플러그인 크로스 트리거 확대 — Phase 2" 참조).
+**아직 레벨형만 있는 지표(모니터링용, 선택)** — SharpeRatioMonitor, SortinoRatio,
+CalmarRatio, CorrelationAnalysis 등 (TODO.md "조건 플러그인 크로스 트리거 확대 — Phase 3" 참조).
 
 > ⚠️ MACD `bullish_cross`/`bearish_cross`와 MovingAverageCross `golden`/`dead`를
 > v1.14.0 이하에서 이미 쓰고 있었다면, v1.15.0으로 올리면 **알림 빈도가 줄어든다**
