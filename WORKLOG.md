@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-07-19 (3) — 조건 플러그인 크로스 트리거 Phase 2(밴드/레벨 터치형) (main, community v1.16.0)
+
+**작업자**: Claude (jwko76 요청 — TODO.md "다음 작업 후보" 3번 진행)
+
+Phase 0/1(2026-07-13)에서 오실레이터형 8종에 붙인 크로스 트리거를, "가격 vs
+밴드값" 비교가 필요한 밴드/레벨 터치형 4종으로 확대.
+
+- **bollinger_bands v3.1.0**: `position` enum에 `cross_below_lower`/
+  `cross_above_upper` 추가. `bb_series[-2]`(직전 봉 밴드)와 `prices[-2]`
+  (직전 종가)를 비교해 돌파 순간만 통과.
+- **vwap v1.1.0**: `direction` enum에 `cross_above`/`cross_below` 추가 —
+  가격이 VWAP 선 자체를 돌파하는 순간(기존 밴드 옵션과는 별개).
+- **cmf v1.1.0**: `direction` enum에 `cross_accumulation`/
+  `cross_distribution` 추가 — 매집/분산 구간 진입 순간.
+- **relative_strength v1.1.0**: `direction` enum에 `cross_above`/
+  `cross_below` 추가. RS 점수는 population(벤치마크 포함) 전체를 매번
+  다시 랭킹매기는 구조라 "직전 값"이 따로 없어서, 신규 헬퍼
+  `_rank_relative_strength(trim=N)`으로 전체 종목·벤치마크를 N봉 앞선
+  시점으로 재계산 — trim=1로 직전 봉 랭킹을 구해 현재 랭킹과 비교.
+
+각 플러그인 `symbol_results`에 `prev_*` 필드 추가(투명성), 기존 enum·기본값
+불변(하위호환).
+
+**부수 발견**: 볼린저 2-표준편차 밴드는 선형 하락/상승 데이터로는 수학적으로
+거의 돌파되지 않는다 — 5봉 창에서 이동평균이 현재가보다 2d 뒤처지고 2-std
+밴드폭은 약 2.83d라서 항상 안쪽에 머문다. 테스트 데이터는 std_dev=1.0으로
+설계(스키마 허용 범위 0.5~4.0 내)해 우회.
+
+테스트: 신규 4파일(`test_bollinger_bands_cross_trigger.py`,
+`test_vwap_cross_trigger.py`, `test_cmf_cross_trigger.py`,
+`test_relative_strength_cross_trigger.py`) 18건 — 돌파 통과/유지 침묵/부족
+데이터 패턴. community 전체 1257 passed(기존 파일 파서 28건 실패는
+openpyxl 미설치로 무관, 회귀 0건).
+
+문서: `docs/signal_dedup_migration_guide.md` §7에 Phase 2 표 추가,
+`src/community/CHANGELOG.md` 1.16.0 항목 신설. Phase 3(모니터링 지표,
+sharpe/sortino/calmar/correlation)은 선택 사항으로 TODO.md에 이월.
+
+---
+
 ## 2026-07-19 (2) — KIS 확장(MVP 이후 보류분) 4항목 구현 (feature/kis-extensions)
 
 **작업자**: Claude (jwko76 요청 — TODO.md "KIS 확장" 진행)

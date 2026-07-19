@@ -17,16 +17,21 @@ VWAP_SCHEMA = PluginSchema(
     id="VWAP",
     name="VWAP",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Volume Weighted Average Price. Price above VWAP indicates buying pressure, below indicates selling pressure. Optional standard deviation bands.",
+    version="1.1.0",
+    description="Volume Weighted Average Price. Price above VWAP indicates buying pressure, below indicates selling pressure. Optional standard deviation bands. Use cross_above/cross_below to fire only at the moment price crosses VWAP (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "direction": {
             "type": "string",
             "default": "above",
             "title": "Direction",
-            "description": "Price position relative to VWAP (above/below)",
-            "enum": ["above", "below"],
+            "description": (
+                "above: fires every evaluation while price stays above VWAP, "
+                "below: fires every evaluation while price stays below VWAP, "
+                "cross_above: fires once at the moment price crosses over VWAP (edge trigger), "
+                "cross_below: fires once at the moment price crosses under VWAP"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
         },
         "band_multiplier": {
             "type": "float",
@@ -51,7 +56,7 @@ VWAP_SCHEMA = PluginSchema(
         "ko": {
             "name": "거래량가중평균가격 (VWAP)",
             "description": "거래량 가중 평균가격입니다. 가격이 VWAP 위면 매수 우위, 아래면 매도 우위를 나타냅니다. 표준편차 밴드 옵션을 지원합니다.",
-            "fields.direction": "가격 위치 (above: VWAP 위, below: VWAP 아래)",
+            "fields.direction": "가격 위치 (above: VWAP 위 — 유지 중 매 평가마다 발생, below: VWAP 아래, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
             "fields.band_multiplier": "표준편차 밴드 배수 (0 = 밴드 없음)",
         },
     },
@@ -275,6 +280,8 @@ async def vwap_condition(
         # 최종 VWAP 값
         last_vwap = vwap_series[-1]["vwap"] if vwap_series else 0
         current_close = closes[-1]
+        prev_close = closes[-2] if len(closes) >= 2 else None
+        prev_vwap = vwap_series[-2]["vwap"] if len(vwap_series) >= 2 else None
 
         symbol_results.append({
             "symbol": symbol,
@@ -283,12 +290,30 @@ async def vwap_condition(
             "current_close": current_close,
             "upper_band": vwap_series[-1]["upper_band"] if vwap_series else None,
             "lower_band": vwap_series[-1]["lower_band"] if vwap_series else None,
+            "prev_close": prev_close,
+            "prev_vwap": prev_vwap,
         })
 
         if direction == "above":
             passed_condition = current_close > last_vwap and last_vwap > 0
-        else:
+        elif direction == "below":
             passed_condition = current_close < last_vwap and last_vwap > 0
+        elif direction == "cross_above":
+            passed_condition = (
+                prev_close is not None and prev_vwap is not None
+                and prev_vwap > 0 and last_vwap > 0
+                and prev_close <= prev_vwap
+                and current_close > last_vwap
+            )
+        elif direction == "cross_below":
+            passed_condition = (
+                prev_close is not None and prev_vwap is not None
+                and prev_vwap > 0 and last_vwap > 0
+                and prev_close >= prev_vwap
+                and current_close < last_vwap
+            )
+        else:
+            passed_condition = False
 
         if passed_condition:
             passed.append(sym_dict)

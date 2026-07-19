@@ -23,8 +23,8 @@ BOLLINGER_SCHEMA = PluginSchema(
     id="BollingerBands",
     name="Bollinger Bands",
     category=PluginCategory.TECHNICAL,
-    version="3.0.0",
-    description="Measures how far the price has deviated from the average. Near the lower band indicates undervalued, near the upper band indicates overvalued.",
+    version="3.1.0",
+    description="Measures how far the price has deviated from the average. Near the lower band indicates undervalued, near the upper band indicates overvalued. Use cross_below_lower/cross_above_upper to fire only at the moment price crosses the band (edge trigger) instead of on every evaluation while it stays outside the band.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "period": {
@@ -45,7 +45,13 @@ BOLLINGER_SCHEMA = PluginSchema(
             "type": "string",
             "default": "below_lower",
             "title": "Condition Position",
-            "enum": ["below_lower", "above_upper"],
+            "description": (
+                "below_lower: fires every evaluation while price stays below the lower band, "
+                "above_upper: fires every evaluation while price stays above the upper band, "
+                "cross_below_lower: fires once at the moment price crosses under the lower band (edge trigger), "
+                "cross_above_upper: fires once at the moment price crosses over the upper band"
+            ),
+            "enum": ["below_lower", "above_upper", "cross_below_lower", "cross_above_upper"],
         },
     },
     required_data=["data"],
@@ -65,7 +71,7 @@ BOLLINGER_SCHEMA = PluginSchema(
             "description": "주가가 평균에서 얼마나 벗어났는지 판단합니다. 하단 밴드 근처면 저평가, 상단 밴드 근처면 고평가 상태를 나타냅니다.",
             "fields.period": "이동평균 기간",
             "fields.std_dev": "표준편차 배수",
-            "fields.position": "조건 위치",
+            "fields.position": "조건 위치 (below_lower: 하단 밴드 하회 — 유지 중 매 평가마다 발생, above_upper: 상단 밴드 상회, cross_below_lower: 하단 밴드 하향 돌파 순간 1회 발생, cross_above_upper: 상단 밴드 상향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -194,12 +200,18 @@ async def bollinger_condition(
         
         bb_data = calculate_bollinger_bands(prices, period, std_dev)
         bb_series = calculate_bollinger_series(prices, period, std_dev)
-        
+
+        prev_price = prices[-2] if len(prices) >= 2 else None
+        prev_bb = bb_series[-2] if len(bb_series) >= 2 else None
+
         symbol_results.append({
             "symbol": symbol,
             "exchange": exchange,
             **bb_data,
             "current_price": current_price,
+            "prev_price": prev_price,
+            "prev_lower": prev_bb.get("lower") if prev_bb else None,
+            "prev_upper": prev_bb.get("upper") if prev_bb else None,
         })
         
         # time_series 구성 (+ signal/side)
@@ -245,9 +257,23 @@ async def bollinger_condition(
         
         if position == "below_lower":
             passed_condition = current_price < bb_data["lower"]
-        else:
+        elif position == "above_upper":
             passed_condition = current_price > bb_data["upper"]
-        
+        elif position == "cross_below_lower":
+            passed_condition = (
+                prev_price is not None and prev_bb is not None
+                and prev_price >= prev_bb["lower"]
+                and current_price < bb_data["lower"]
+            )
+        elif position == "cross_above_upper":
+            passed_condition = (
+                prev_price is not None and prev_bb is not None
+                and prev_price <= prev_bb["upper"]
+                and current_price > bb_data["upper"]
+            )
+        else:
+            passed_condition = False
+
         if passed_condition:
             passed.append(sym_dict)
         else:

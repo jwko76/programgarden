@@ -1,3 +1,19 @@
+## [1.16.0] - 2026-07-19
+### Added
+- **밴드/레벨 터치형 지표 4종 — 크로스(edge) 트리거 추가 (Phase 2)**
+  (`bollinger_bands` v3.1.0, `vwap` v1.1.0, `cmf` v1.1.0, `relative_strength` v1.1.0) —
+  기존 오실레이터 7종과 동일 패턴: 밴드형은 "가격 vs 밴드값" 비교라 직전 캔들의
+  밴드·가격이 모두 필요.
+  - BollingerBands: `position` enum에 `cross_below_lower`/`cross_above_upper` 추가.
+  - VWAP: `direction` enum에 `cross_above`/`cross_below` 추가(가격이 VWAP 선을 돌파하는 순간).
+  - CMF: `direction` enum에 `cross_accumulation`/`cross_distribution` 추가(매집/분산 구간 진입 순간).
+  - RelativeStrength: `direction` enum에 `cross_above`/`cross_below` 추가. RS 점수는
+    population(벤치마크 포함) 전체 랭킹이라 직전 봉 시점 값이 별도로 없어, 전체를 한 봉
+    이전 시점으로 재계산하는 `_rank_relative_strength` 헬퍼를 신설(현재 vs 직전 랭킹 비교).
+  - `symbol_results`에 `prev_*` 필드 추가(`prev_lower`/`prev_upper`, `prev_vwap`,
+    `prev_cmf`, `prev_rs_score`). 기존 enum 값·기본값 불변(하위호환).
+    플러그인별 단위 테스트 4~5건씩 신규(돌파 통과/유지 침묵/부족 데이터).
+
 ## [1.15.0] - 2026-07-13
 ### Fixed
 - **MACD v3.1.0 / MovingAverageCross v3.1.0 — `bullish_cross`/`golden` 등 기존 크로스
