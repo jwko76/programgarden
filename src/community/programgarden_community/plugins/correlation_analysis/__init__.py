@@ -18,8 +18,8 @@ CORRELATION_ANALYSIS_SCHEMA = PluginSchema(
     id="CorrelationAnalysis",
     name="Correlation Analysis",
     category=PluginCategory.TECHNICAL,
-    version="1.0.0",
-    description="Calculates rolling correlation between assets. Used for diversification verification and pairs trading detection.",
+    version="1.1.0",
+    description="Calculates rolling correlation between assets. Used for diversification verification and pairs trading detection. Use cross_above/cross_below to fire only at the moment the max correlation crosses the threshold (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {
@@ -42,8 +42,13 @@ CORRELATION_ANALYSIS_SCHEMA = PluginSchema(
             "type": "string",
             "default": "above",
             "title": "Direction",
-            "description": "above: high correlation (pairs), below: low correlation (diversification)",
-            "enum": ["above", "below"],
+            "description": (
+                "above: fires every evaluation while max correlation stays above threshold (pairs), "
+                "below: fires every evaluation while max correlation stays below threshold (diversification), "
+                "cross_above: fires once at the moment max correlation crosses over threshold (edge trigger), "
+                "cross_below: fires once at the moment max correlation crosses under threshold"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
         },
         "method": {
             "type": "string",
@@ -68,7 +73,7 @@ CORRELATION_ANALYSIS_SCHEMA = PluginSchema(
             "description": "종목 간 롤링 상관계수를 계산합니다. 포트폴리오 분산 투자 검증이나 페어 트레이딩 대상 탐색에 활용됩니다.",
             "fields.lookback": "롤링 상관계수 계산 기간",
             "fields.threshold": "상관계수 필터링 임계값",
-            "fields.direction": "방향 (above: 고상관=페어, below: 저상관=분산)",
+            "fields.direction": "방향 (above: 고상관=페어 — 유지 중 매 평가마다 발생, below: 저상관=분산, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
             "fields.method": "상관계수 계산 방법 (피어슨/스피어만)",
         },
     },
@@ -110,6 +115,60 @@ def _spearman_correlation(x: List[float], y: List[float]) -> float:
     rank_x = _rank(x)
     rank_y = _rank(y)
     return _pearson_correlation(rank_x, rank_y)
+
+
+def _compute_symbol_max_corr(
+    symbol_price_by_date: Dict[str, Dict[str, float]],
+    all_symbols: List[str],
+    lookback: int,
+    method: str,
+    trim: int = 0,
+) -> Dict[str, float]:
+    """모든 페어의 상관계수를 계산해 종목별 최대 절대값 상관계수를 반환.
+
+    cross_above/cross_below는 "직전 봉 시점"의 최대상관계수가 필요해서, 공통 날짜의
+    마지막 trim개를 제외한 뒤 동일한 로직으로 재계산한다.
+    """
+    symbol_max_corr: Dict[str, float] = {}
+
+    for i in range(len(all_symbols)):
+        for j in range(i + 1, len(all_symbols)):
+            sym_a, sym_b = all_symbols[i], all_symbols[j]
+
+            dates_a = set(symbol_price_by_date[sym_a].keys())
+            dates_b = set(symbol_price_by_date[sym_b].keys())
+            common_dates = sorted(dates_a & dates_b)
+            if trim:
+                common_dates = common_dates[:-trim] if len(common_dates) > trim else []
+
+            if len(common_dates) < lookback:
+                continue
+
+            recent_dates = common_dates[-lookback:]
+            prices_a = [symbol_price_by_date[sym_a][d] for d in recent_dates]
+            prices_b = [symbol_price_by_date[sym_b][d] for d in recent_dates]
+
+            returns_a = [(prices_a[k] - prices_a[k - 1]) / prices_a[k - 1] for k in range(1, len(prices_a)) if prices_a[k - 1] > 0]
+            returns_b = [(prices_b[k] - prices_b[k - 1]) / prices_b[k - 1] for k in range(1, len(prices_b)) if prices_b[k - 1] > 0]
+
+            min_len = min(len(returns_a), len(returns_b))
+            if min_len < 10:
+                continue
+
+            returns_a = returns_a[-min_len:]
+            returns_b = returns_b[-min_len:]
+
+            if method == "spearman":
+                corr = _spearman_correlation(returns_a, returns_b)
+            else:
+                corr = _pearson_correlation(returns_a, returns_b)
+            corr = round(corr, 4)
+
+            for sym in (sym_a, sym_b):
+                if sym not in symbol_max_corr or abs(corr) > abs(symbol_max_corr[sym]):
+                    symbol_max_corr[sym] = corr
+
+    return symbol_max_corr
 
 
 async def correlation_analysis_condition(
@@ -234,6 +293,11 @@ async def correlation_analysis_condition(
                 symbol_max_corr[sym] = pair["correlation"]
                 symbol_best_pair[sym] = other
 
+    # cross_above/cross_below는 직전 봉 시점의 최대상관계수가 필요
+    prev_symbol_max_corr: Dict[str, float] = {}
+    if direction in ("cross_above", "cross_below"):
+        prev_symbol_max_corr = _compute_symbol_max_corr(symbol_price_by_date, all_symbols, lookback, method, trim=1)
+
     target_symbols = symbols or [{"symbol": s, "exchange": symbol_exchange_map.get(s, "UNKNOWN")} for s in all_symbols]
 
     for sym_info in target_symbols:
@@ -250,10 +314,18 @@ async def correlation_analysis_condition(
             values.append({"symbol": symbol, "exchange": exchange, "time_series": []})
             continue
 
+        prev_max_corr = prev_symbol_max_corr.get(symbol)
+
         if direction == "above":
             passed_condition = max_corr > threshold
-        else:
+        elif direction == "below":
             passed_condition = max_corr < threshold
+        elif direction == "cross_above":
+            passed_condition = prev_max_corr is not None and prev_max_corr <= threshold and max_corr > threshold
+        elif direction == "cross_below":
+            passed_condition = prev_max_corr is not None and prev_max_corr >= threshold and max_corr < threshold
+        else:
+            passed_condition = False
 
         if passed_condition:
             passed.append(sym_dict)
@@ -264,6 +336,7 @@ async def correlation_analysis_condition(
             "symbol": symbol, "exchange": exchange,
             "max_correlation": max_corr, "best_pair": best_pair,
             "passed": passed_condition,
+            "prev_max_correlation": prev_max_corr,
         })
 
         time_series = [{

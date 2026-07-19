@@ -142,6 +142,23 @@ population 전체(벤치마크 포함) 랭킹을 한 봉 이전 시점으로 재
 헬퍼) — 데이터가 `lookback+1`개뿐이면(직전 시점엔 lookback을 못 채움) prev 점수가 없어
 크로스는 통과하지 않는다.
 
+**모니터링 지표 — 크로스 모드 지원 (v1.17.0, Phase 3 — 선택 항목)**
+
+| 플러그인 | 크로스 enum 값 |
+|---------|----------------|
+| SharpeRatioMonitor | `cross_above` / `cross_below` |
+| SortinoRatio | `cross_above` / `cross_below` |
+| CalmarRatio | `cross_above` / `cross_below` |
+| CorrelationAnalysis | `cross_above` / `cross_below` |
+
+이 4종은 매매 신호가 아니라 전략/포트폴리오 상태 모니터링용이라 실제 알림 중복 사례는
+없었지만, Phase 0~2와 동일 패턴으로 예방적 확장. 각 지표는 롤링 lookback window
+기준 단일 값만 계산하는 구조라 "직전 값"이 따로 없어서, `prices[:-1]`로 한 봉 앞선
+window를 다시 계산하거나(sharpe/sortino/calmar), population을 한 봉 이전 시점으로
+재계산하는 `_compute_symbol_max_corr(trim=1)`(correlation_analysis)로 비교한다.
+CalmarRatio의 `inf` 값(연속 상승으로 낙폭이 0에 수렴할 때 발생)은 크로스 판정에서도
+유한값이 아니므로 제외.
+
 **이미 크로스 이벤트형이라 그대로 쓰면 되는 지표** — Stochastic(`oversold`/`overbought`는
 %K/%D 교차 기준이라 이미 엣지 트리거), MACD(`bullish_cross`/`bearish_cross`, v3.1.0에서
 버그 수정 — 과거엔 레벨 체크였음), MovingAverageCross(`golden`/`dead`, 마찬가지로
@@ -149,9 +166,6 @@ v3.1.0에서 버그 수정), Aroon(`cross_up`/`cross_down`), CoppockCurve(`zero_
 TRIX(`bullish_cross`/`bearish_cross`), VortexIndicator(`bullish_cross`/`bearish_cross`),
 ParabolicSAR(`bullish_reversal`/`bearish_reversal`), SqueezeMomentum(`squeeze_fire_long`/
 `squeeze_fire_short`).
-
-**아직 레벨형만 있는 지표(모니터링용, 선택)** — SharpeRatioMonitor, SortinoRatio,
-CalmarRatio, CorrelationAnalysis 등 (TODO.md "조건 플러그인 크로스 트리거 확대 — Phase 3" 참조).
 
 > ⚠️ MACD `bullish_cross`/`bearish_cross`와 MovingAverageCross `golden`/`dead`를
 > v1.14.0 이하에서 이미 쓰고 있었다면, v1.15.0으로 올리면 **알림 빈도가 줄어든다**

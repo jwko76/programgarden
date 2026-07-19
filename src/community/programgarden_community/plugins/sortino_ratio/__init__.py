@@ -19,14 +19,23 @@ SORTINO_RATIO_SCHEMA = PluginSchema(
     id="SortinoRatio",
     name="Sortino Ratio",
     category=PluginCategory.POSITION,
-    version="1.0.0",
-    description="Sortino ratio measures risk-adjusted return using only downside deviation. Better than Sharpe for asymmetric return distributions as it only penalizes harmful volatility.",
+    version="1.1.0",
+    description="Sortino ratio measures risk-adjusted return using only downside deviation. Better than Sharpe for asymmetric return distributions as it only penalizes harmful volatility. Use cross_above/cross_below to fire only at the moment Sortino crosses the threshold (edge trigger) instead of on every evaluation while it stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
         "lookback": {"type": "int", "default": 60, "title": "Lookback Period", "description": "Number of periods", "ge": 20, "le": 500},
         "mar": {"type": "float", "default": 0.0, "title": "Minimum Acceptable Return", "description": "Daily MAR (annualized / 252)", "ge": -0.10, "le": 0.20},
         "threshold": {"type": "float", "default": 1.5, "title": "Threshold", "description": "Sortino ratio threshold", "ge": -5.0, "le": 10.0},
-        "direction": {"type": "string", "default": "above", "title": "Direction", "description": "above: good, below: poor", "enum": ["above", "below"]},
+        "direction": {
+            "type": "string", "default": "above", "title": "Direction",
+            "description": (
+                "above: fires every evaluation while Sortino stays above threshold (good), "
+                "below: fires every evaluation while Sortino stays below threshold (poor), "
+                "cross_above: fires once at the moment Sortino crosses over threshold (edge trigger), "
+                "cross_below: fires once at the moment Sortino crosses under threshold"
+            ),
+            "enum": ["above", "below", "cross_above", "cross_below"],
+        },
     },
     required_data=["data"],
     required_fields=["symbol", "exchange", "date", "close"],
@@ -45,7 +54,7 @@ SORTINO_RATIO_SCHEMA = PluginSchema(
             "fields.lookback": "룩백 기간 (일)",
             "fields.mar": "최소 허용 수익률 (일간)",
             "fields.threshold": "소르티노 비율 임계치",
-            "fields.direction": "방향 (above: 양호, below: 부진)",
+            "fields.direction": "방향 (above: 양호 — 유지 중 매 평가마다 발생, below: 부진, cross_above: 상향 돌파 순간 1회 발생, cross_below: 하향 돌파 순간 1회 발생)",
         },
     },
 )
@@ -134,12 +143,27 @@ async def sortino_ratio_condition(
 
         current_price = prices[-1] if prices else None
         metrics = calculate_sortino(prices, lookback, mar)
+        prev_metrics = calculate_sortino(prices[:-1], lookback, mar)
 
-        symbol_results.append({"symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price})
+        symbol_results.append({
+            "symbol": symbol, "exchange": exchange, **metrics, "current_price": current_price,
+            "prev_sortino_ratio": prev_metrics["sortino_ratio"],
+        })
         values.append({"symbol": symbol, "exchange": exchange, "time_series": []})
 
-        if metrics["sortino_ratio"] is not None:
-            cond = metrics["sortino_ratio"] > threshold if direction == "above" else metrics["sortino_ratio"] < threshold
+        sortino = metrics["sortino_ratio"]
+        prev_sortino = prev_metrics["sortino_ratio"]
+        if sortino is not None:
+            if direction == "above":
+                cond = sortino > threshold
+            elif direction == "below":
+                cond = sortino < threshold
+            elif direction == "cross_above":
+                cond = prev_sortino is not None and prev_sortino <= threshold and sortino > threshold
+            elif direction == "cross_below":
+                cond = prev_sortino is not None and prev_sortino >= threshold and sortino < threshold
+            else:
+                cond = False
             (passed if cond else failed).append(sym_dict)
         else:
             failed.append(sym_dict)
