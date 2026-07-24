@@ -1,3 +1,23 @@
+## [1.17.1] - 2026-07-24
+### Fixed
+- **MovingAverageCross v3.1.1 — `time_series[].short_ma` 인덱스 정렬 버그 수정**
+  (`plugins/ma_cross/__init__.py`) — `time_series`의 각 행 `short_ma`가 그 시점의
+  실제 값이 아니라 `(long_period - 2·short_period + 1)`봉만큼 과거의 stale한 값이었음
+  (기본값 `short_period=5, long_period=20` 기준 11봉 지연). `calculate_sma_series()`가
+  반환하는 배열 인덱스 `k`는 원본 `prices`의 `(period-1+k)`에 대응하는데, `long_ma`는
+  이 정렬을 올바르게 반영한 반면(`long_ma_series[i - (long_period-1)]`) `short_ma`는
+  잘못된 오프셋(`short_idx = i - (long_period - short_period)`)을 써서 발생 —
+  `short_idx = i - (short_period - 1)`로 수정(long_ma와 동일한 정렬 방식).
+  `symbol_results`(현재 시점 요약, 음수 인덱스로 계산)와 `passed_symbols`/`result`(현재
+  크로스 판정)는 이 버그의 영향을 받지 않고 정상이었음 — 오직 `time_series`를 근거로
+  과거 각 시점을 재구성하는 백테스트·차트 오버레이 소비 코드만 영향을 받음(심한 경우
+  상승 중에 데드크로스 신호가 뒤집혀 나옴). MonitoringLSStock에서 AI 추천 상세 모달에
+  이동평균선 오버레이 구현 중 발견. `docs/bug_reports/ma_cross_time_series_short_ma_lag.md`
+  참조. `time_series` 각 행의 `short_ma`를 실제 슬라이딩 윈도우 평균과 대조하는 회귀
+  테스트 1건 신규(`test_ma_cross_plugin.py`). 형제 플러그인 MACD(`plugins/macd/__init__.py`)도
+  함께 점검 — MACD는 매 시점 누적 슬라이스를 통째로 재계산하는 구조라 이 종류의 인덱스
+  정렬 버그가 구조적으로 발생할 수 없음을 확인, 코드 변경 없음.
+
 ## [1.17.0] - 2026-07-19
 ### Added
 - **모니터링 지표 4종 — 크로스(edge) 트리거 추가 (Phase 3, 선택 항목)**

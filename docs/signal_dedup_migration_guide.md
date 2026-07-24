@@ -170,3 +170,11 @@ ParabolicSAR(`bullish_reversal`/`bearish_reversal`), SqueezeMomentum(`squeeze_fi
 > ⚠️ MACD `bullish_cross`/`bearish_cross`와 MovingAverageCross `golden`/`dead`를
 > v1.14.0 이하에서 이미 쓰고 있었다면, v1.15.0으로 올리면 **알림 빈도가 줄어든다**
 > (버그 수정으로 돌파 순간에만 통과하도록 바뀜 — 의도된 동작에 가까워진 것).
+
+> ⚠️ MovingAverageCross v1.17.1(플러그인 v3.1.1)에서 별개의 버그가 하나 더 수정됐다 —
+> 위 v1.15.0 수정은 **실제 알림 판정**(`passed_symbols`/`result`)에 관한 것이었고, 이번
+> 것은 `values[].time_series[]`(차트 오버레이·백테스트용 과거 시계열 재구성)에만 있던
+> 인덱스 정렬 버그다. 알림 판정 로직 자체는 v1.15.0 이후 항상 정상이었으므로 실거래
+> 알림에는 영향이 없었지만, `time_series`의 `short_ma`를 근거로 크로스를 재구성하는
+> 소비 코드(차트 표시, 백테스트)가 있었다면 v1.17.1로 올려야 한다.
+> `docs/bug_reports/ma_cross_time_series_short_ma_lag.md` 참조.

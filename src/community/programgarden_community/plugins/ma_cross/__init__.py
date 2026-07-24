@@ -17,7 +17,7 @@ MA_CROSS_SCHEMA = PluginSchema(
     id="MovingAverageCross",
     name="Moving Average Cross",
     category=PluginCategory.TECHNICAL,
-    version="3.1.0",
+    version="3.1.1",
     description="Golden Cross (bullish) when short MA crosses above long MA, Dead Cross (bearish) when crossing below. Fires once at the moment of crossover (edge trigger), not while short/long stays on one side.",
     products=[ProductType.OVERSEAS_STOCK, ProductType.OVERSEAS_FUTURES],
     fields_schema={
@@ -144,7 +144,7 @@ async def ma_cross_condition(
         ma_start_idx = long_period - 1
         for i in range(ma_start_idx, len(symbol_data)):
             row = symbol_data[i]
-            short_idx = i - (long_period - short_period)
+            short_idx = i - (short_period - 1)
             short_ma = short_ma_series[short_idx] if 0 <= short_idx < len(short_ma_series) else 0
             long_ma = long_ma_series[i - ma_start_idx] if i - ma_start_idx < len(long_ma_series) else 0
             

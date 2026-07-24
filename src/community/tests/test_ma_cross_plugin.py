@@ -92,3 +92,19 @@ class TestMaCrossTrigger:
             fields={"short_period": SHORT, "long_period": LONG, "cross_type": "golden"},
         )
         assert result["result"] is False
+
+    @pytest.mark.asyncio
+    async def test_time_series_short_ma_matches_actual_window(self):
+        """time_series의 각 행 short_ma가 그 시점 기준 실제 short_period봉 평균과 일치해야 함
+        (회귀 방지 — short_idx 인덱스 정렬 버그, 2026-07-24 발견)."""
+        result = await ma_cross_condition(
+            data=make_rows(PRICES),
+            fields={"short_period": SHORT, "long_period": LONG, "cross_type": "golden"},
+        )
+        ts = result["values"][0]["time_series"]
+        for row_idx, row in enumerate(ts):
+            original_idx = (LONG - 1) + row_idx
+            expected = sum(PRICES[original_idx - SHORT + 1: original_idx + 1]) / SHORT
+            assert abs(row["short_ma"] - expected) < 0.01, (
+                f"row {row_idx}(date={row['date']}): short_ma={row['short_ma']}, expected={expected}"
+            )
