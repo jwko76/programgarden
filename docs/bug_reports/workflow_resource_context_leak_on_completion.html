@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>워크플로우 정상 완료 시 리소스 누수 수정 보고서</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #5c6370;
+    --border: #e2e2e2;
+    --card: #f7f7f8;
+    --accent: #2563eb;
+    --ok-bg: #ecfdf5;
+    --ok-border: #10b981;
+    --warn-bg: #fff8e1;
+    --warn-border: #f0c419;
+    --code-bg: #f0f0f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --fg: #e8e8e8;
+      --muted: #9aa0a6;
+      --border: #333333;
+      --card: #1c1c1e;
+      --accent: #60a5fa;
+      --ok-bg: #0f2a20;
+      --ok-border: #34d399;
+      --warn-bg: #2a2410;
+      --warn-border: #a88a1f;
+      --code-bg: #1e1e20;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Pretendard, sans-serif;
+    line-height: 1.7;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+  h1 {
+    font-size: 1.5rem;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  h2 {
+    font-size: 1.2rem;
+    margin-top: 2.5rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.6rem;
+  }
+  h3 {
+    font-size: 1rem;
+    margin-top: 1.8rem;
+    color: var(--accent);
+  }
+  p, li { color: var(--fg); }
+  code {
+    background: var(--code-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.55rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--card);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  blockquote {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    color: var(--muted);
+  }
+  .banner {
+    background: var(--ok-bg);
+    border: 1px solid var(--ok-border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0 2rem;
+    font-weight: 600;
+  }
+  .warn {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+  }
+  .diff-del { color: #dc2626; }
+  .diff-add { color: #16a34a; }
+  @media (prefers-color-scheme: dark) {
+    .diff-del { color: #f87171; }
+    .diff-add { color: #4ade80; }
+  }
+  ol > li, ul > li { margin-bottom: 0.35rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>[Bug/Fix] 워크플로우 정상 완료 시 ResourceContext/RiskTracker 리소스 누수</h1>
+<div class="meta">
+  파일: <code>src/programgarden/programgarden/executor.py</code> ·
+  함수: <code>WorkflowJob._run()</code> / <code>stop()</code> / <code>cancel()</code> / <code>force_stop()</code> ·
+  발견/수정일: 2026-07-24
+</div>
+
+<div class="banner">
+  ✅ 해결됨 — 패키지 <code>programgarden</code> v1.29.0 → v1.29.1, 회귀 테스트 2건 추가
+</div>
+
+<h2>요약</h2>
+<p>
+  <code>WorkflowJob._run()</code>이 워크플로우를 실행할 때마다 <code>ResourceContext</code>
+  (CPU/메모리 사용률 기반 스로틀링용, <code>AdaptiveThrottle</code> + <code>ResourceMonitor</code>
+  각각 백그라운드 asyncio 태스크 보유)를 새로 만들어 시작한다. 이 리소스는 <code>stop()</code>을
+  호출해야만 멈추는데, <strong>워크플로우가 스스로 끝까지 실행되어 정상 종료되는 경로
+  (<code>_run()</code>의 <code>finally</code> 블록)에는 그 호출이 빠져 있었다.</strong>
+  정리는 오직 외부에서 명시적으로 부르는 <code>stop()</code>/<code>cancel()</code>/
+  <code>force_stop()</code>에만 있었다. HWM(고점 대비 낙폭) 추적을 쓰는 워크플로우의
+  <code>WorkflowRiskTracker</code> flush loop도 동일한 누락 패턴이라 같이 수정했다.
+</p>
+
+<h2>발견 경위</h2>
+<p>
+  MonitoringLSStock OCI 운영 서버(<code>stock-monitor</code> 컨테이너, 메모리 캡 2GiB)를
+  재배포한 지 15분 만에 <code>docker stats</code> 기준 메모리 86%→94%, CPU 98%→152%로
+  계속 증가하는 것을 라이브로 관측했다. 컨테이너 로그에는 "Throttle level changed"가
+  같은 밀리초에 수백 줄씩 찍히는 이상 패턴이 있었고, 코드를 추적해 programgarden 엔진
+  자체의 리소스 정리 누락 버그로 확인했다.
+</p>
+
+<h2>원인</h2>
+<table>
+  <thead><tr><th>리소스</th><th>정지 메서드</th><th>백그라운드 루프</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>AdaptiveThrottle</code></td>
+      <td><code>ResourceContext.stop()</code></td>
+      <td><code>throttle.py:191-198</code>, 2초 주기 <code>while self._running: ...</code></td>
+    </tr>
+    <tr>
+      <td><code>ResourceMonitor</code></td>
+      <td><code>ResourceContext.stop()</code></td>
+      <td><code>monitor.py:93</code>, 1초 주기 동일 패턴</td>
+    </tr>
+    <tr>
+      <td><code>WorkflowRiskTracker</code></td>
+      <td><code>stop_flush_loop()</code></td>
+      <td><code>workflow_risk_tracker.py:922-925</code>, <code>while True: ...</code></td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  <code>_run()</code>의 <code>finally</code> 블록(수정 전)은 브로커 fill 구독, MarketStatusNode
+  JIF 구독, persistent 노드, 리스너만 정리했고 <code>context.resource</code>/
+  <code>context.risk_tracker</code> 정리가 없었다. 반면 <code>stop()</code>/<code>cancel()</code>/
+  <code>force_stop()</code>에는 각각 인라인으로 중복 구현돼 있었다 — <strong>"정상 완료 경로"와
+  "외부 중단 경로"가 서로 다른 정리 로직을 갖게 된 것이 근본 원인.</strong>
+</p>
+<p>
+  <code>while self._running</code>/<code>while True</code> 루프는 <code>asyncio.create_task()</code>로
+  이벤트 루프에 스케줄되므로, 아무도 취소하지 않으면 <strong>영원히 실행되는 태스크</strong>가
+  된다. 이벤트 루프가 이 태스크를 계속 참조하기 때문에 GC도 되지 않는다. MonitoringLSStock 등
+  소비 서비스는 <code>job.status</code>가 "completed"가 될 때까지 폴링만 하고 <strong>
+  <code>job.stop()</code>/<code>cancel()</code>을 호출하지 않는 패턴</strong>이 흔했다 —
+  워크플로우를 실행할 때마다(배치 스캔이면 반복 사이클마다) orphan 태스크가 계속 쌓인다.
+</p>
+
+<h2>왜 기존 테스트가 못 잡았나</h2>
+<p>
+  <code>test_listener_cleanup.py</code>는 워크플로우가 자연 완료된 뒤에도 <strong>항상
+  <code>job.stop()</code>을 명시 호출</strong>해서 정리를 검증하는 패턴이다. 이 패턴에서는
+  <code>stop()</code>이 리소스를 정리하므로 테스트가 항상 통과했고, "아무도 stop()을 안
+  부르는" 실제 프로덕션 시나리오는 커버되지 않았다.
+</p>
+
+<h2>수정</h2>
+<p>
+  <code>stop()</code>/<code>cancel()</code>/<code>force_stop()</code>에 중복돼 있던 정리
+  로직을 공용 private 헬퍼로 추출하고, <code>_run()</code>의 <code>finally</code>에도
+  동일하게 적용했다.
+</p>
+<pre><code>async def _cleanup_resource_context(self) -> None:
+    if self.context.resource:
+        try:
+            await self.context.resource.stop()
+        except Exception as e:
+            logger.warning(f"Failed to stop ResourceContext: {e}")
+
+async def _cleanup_risk_tracker(self) -> None:
+    if self.context.risk_tracker:
+        try:
+            await self.context.risk_tracker.stop_flush_loop()
+        except Exception as e:
+            logger.warning(f"Failed to stop risk tracker: {e}")</code></pre>
+<pre><code>finally:
+    await self._cleanup_broker_fill_subscriptions()
+    await self._cleanup_jif_subscriptions()
+    await self.context.cleanup_persistent_nodes()
+    <span class="diff-add">await self._cleanup_risk_tracker()      # 신규</span>
+    <span class="diff-add">await self._cleanup_resource_context()  # 신규</span>
+    await self.context.cleanup_listeners()</code></pre>
+<p>
+  <code>ResourceContext.stop()</code>과 <code>WorkflowRiskTracker.stop_flush_loop()</code>는
+  이미 멱등이라, <code>_run()</code>이 먼저 정리하고 이후 호출자가 <code>stop()</code>을 또
+  불러도(기존 테스트 패턴) 안전하다 — 리팩터링으로 인한 회귀 없음.
+</p>
+
+<h2>회귀 테스트</h2>
+<p>
+  <code>test_resource_cleanup_on_completion.py</code> 신규 — <code>job.stop()</code>/
+  <code>cancel()</code>을 <strong>전혀 호출하지 않고</strong> 자연 완료만 기다린 뒤
+  백그라운드 태스크가 정리됐는지 직접 검증(실제 프로덕션 시나리오 재현).
+</p>
+<pre><code>async def test_resource_context_stopped_without_explicit_stop(executor):
+    job = await executor.execute(SIMPLE_WORKFLOW, job_id="test-resource-leak")
+    await asyncio.wait_for(job._task, timeout=5.0)   # stop()/cancel() 호출 없음
+
+    assert job.context.resource.is_started is False
+    assert job.context.resource.throttle._task is None or job.context.resource.throttle._task.done()
+    assert job.context.resource.monitor._task is None or job.context.resource.monitor._task.done()</code></pre>
+
+<h3>테스트 결과 (WSL <code>.venv-bithumb</code>)</h3>
+<table>
+  <thead><tr><th>단계</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>수정 전 (버그 재현)</td>
+      <td>
+        <code>assert True is False</code> (resource.is_started가 여전히 True)<br>
+        <code>assert (&lt;Task pending ...&gt; is None or False)</code> (flush_task가 여전히 pending)<br>
+        → 2 failed
+      </td>
+    </tr>
+    <tr>
+      <td>신규 테스트 + <code>test_listener_cleanup.py</code> (수정 후)</td>
+      <td>9 passed</td>
+    </tr>
+    <tr>
+      <td>programgarden 전체 스위트</td>
+      <td>25 failed → 23 failed(신규 2건 통과분 반영). 잔여 23건은 <code>litellm</code>/
+        <code>aiosqlite</code> 모듈 미설치, <code>examples/hkex_futures_bot/workflow.json</code>
+        누락 등 기존 환경 문제로 직접 확인 — 이번 수정과 무관(회귀 아님)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>영향 범위</h2>
+<ul>
+  <li>모든 워크플로우 실행에 영향(범용) — <code>ResourceContext</code>는 모든
+    <code>run_workflow()</code> 호출마다 생성됨. <code>WorkflowRiskTracker</code>는
+    HWM/트레일링스탑 등 위험관리 기능을 쓰는 워크플로우에만 해당(더 좁은 범위).</li>
+  <li>반복 실행(스케줄 배치, 폴링 기반 백테스트/추천 서비스)일수록 누적 속도가 빠름 —
+    MonitoringLSStock의 <code>strategy_recommend_service</code>(1시간마다 종목×전략
+    스펙 조합 실행)가 실제 프로덕션에서 이 버그를 촉발한 사례.</li>
+  <li>방치 시 컨테이너 메모리 캡에 도달해 OOM-kill 위험(psutil 폴링 오버헤드 +
+    사용량 히스토리 버퍼 누적).</li>
+</ul>
+
+<hr>
+<p class="meta">관련 문서: <code>src/programgarden/CHANGELOG.md</code> [1.29.1] ·
+  <code>src/programgarden/tests/test_resource_cleanup_on_completion.py</code></p>
+
+</body>
+</html>

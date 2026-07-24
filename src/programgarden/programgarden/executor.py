@@ -17175,6 +17175,12 @@ class WorkflowJob:
             await self._cleanup_jif_subscriptions()
             # Cleanup persistent nodes (shutdown flag 설정 + 구독 해제 + WebSocket close)
             await self.context.cleanup_persistent_nodes()
+            # Cleanup RiskTracker flush loop (정상 완료 시에도 정지 — 호출자가
+            # stop()/cancel()을 안 부르면 flush 태스크가 영원히 살아남는 누수 방지)
+            await self._cleanup_risk_tracker()
+            # Cleanup ResourceContext (정상 완료 시에도 정지 — 위와 동일한 이유로
+            # AdaptiveThrottle/ResourceMonitor 백그라운드 태스크 누수 방지)
+            await self._cleanup_resource_context()
             # Cleanup listeners
             await self.context.cleanup_listeners()
 
@@ -18754,6 +18760,23 @@ class WorkflowJob:
         except Exception as e:
             logger.warning(f"Failed to cleanup JIF subscriptions: {e}")
 
+    async def _cleanup_resource_context(self) -> None:
+        """ResourceContext(AdaptiveThrottle + ResourceMonitor 백그라운드 태스크) 정지."""
+        if self.context.resource:
+            try:
+                await self.context.resource.stop()
+                logger.debug(f"ResourceContext stopped for job {self.job_id}")
+            except Exception as e:
+                logger.warning(f"Failed to stop ResourceContext: {e}")
+
+    async def _cleanup_risk_tracker(self) -> None:
+        """RiskTracker flush loop 정지 (최종 flush는 stop_flush_loop() 내부에서 처리)."""
+        if self.context.risk_tracker:
+            try:
+                await self.context.risk_tracker.stop_flush_loop()
+            except Exception as e:
+                logger.warning(f"Failed to stop risk tracker: {e}")
+
     async def stop(self) -> None:
         """Stop execution gracefully"""
         logger.info(f"Stopping job {self.job_id}")
@@ -18778,19 +18801,10 @@ class WorkflowJob:
                     pass
         
         # Cleanup RiskTracker flush
-        if self.context.risk_tracker:
-            try:
-                await self.context.risk_tracker.stop_flush_loop()
-            except Exception as e:
-                logger.warning(f"Failed to stop risk tracker: {e}")
+        await self._cleanup_risk_tracker()
 
         # Cleanup ResourceContext
-        if self.context.resource:
-            try:
-                await self.context.resource.stop()
-                logger.debug(f"ResourceContext stopped for job {self.job_id}")
-            except Exception as e:
-                logger.warning(f"Failed to stop ResourceContext: {e}")
+        await self._cleanup_resource_context()
 
         # Cleanup listeners
         await self.context.cleanup_listeners()
@@ -18817,18 +18831,10 @@ class WorkflowJob:
         await self.context.cleanup_flow_end_nodes()
 
         # Cleanup RiskTracker flush
-        if self.context.risk_tracker:
-            try:
-                await self.context.risk_tracker.stop_flush_loop()
-            except Exception as e:
-                logger.warning(f"Failed to stop risk tracker: {e}")
+        await self._cleanup_risk_tracker()
 
         # Cleanup ResourceContext
-        if self.context.resource:
-            try:
-                await self.context.resource.stop()
-            except Exception as e:
-                logger.warning(f"Failed to stop ResourceContext: {e}")
+        await self._cleanup_resource_context()
 
         # Cleanup listeners
         await self.context.cleanup_listeners()
@@ -18884,15 +18890,10 @@ class WorkflowJob:
         if self.context.risk_tracker:
             try:
                 await self.context.risk_tracker.flush_to_db()
-                await self.context.risk_tracker.stop_flush_loop()
             except Exception:
                 pass
-
-        if self.context.resource:
-            try:
-                await self.context.resource.stop()
-            except Exception:
-                pass
+        await self._cleanup_risk_tracker()
+        await self._cleanup_resource_context()
 
         await self.context.cleanup_listeners()
         self.completed_at = datetime.now()

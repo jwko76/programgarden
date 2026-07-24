@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+## [1.29.1] - 2026-07-24
+### Fixed
+- **워크플로우 정상 완료 시 리소스 누수 수정** (`executor.py`) — `WorkflowJob._run()`이
+  워크플로우를 정상 완료(성공/실패/취소 예외 불문 `finally` 경로)할 때, 매 실행마다
+  생성되는 `ResourceContext`(`AdaptiveThrottle` 2초 주기 + `ResourceMonitor` 1초 주기
+  백그라운드 asyncio 태스크)와 `WorkflowRiskTracker`의 flush loop(HWM 추적 사용 시)가
+  정지되지 않고 영원히 살아남던 버그. 기존에는 외부에서 명시적으로 `job.stop()`/
+  `cancel()`/`force_stop()`을 불러야만 정리됐는데, 호출자가 `job.status`만 폴링하고
+  완료 후 아무것도 안 부르는 흔한 패턴(예: 백그라운드 배치 스캔)에서는 실행 시마다
+  orphan 태스크가 누적되어 CPU/메모리가 계속 증가함 — OCI 운영 서버에서 재배포 15분
+  만에 컨테이너 메모리 캡(2GiB)의 86%→94%, CPU 98%→152%로 치솟는 현상으로 발견.
+  `stop()`/`cancel()`/`force_stop()`에 중복돼 있던 정리 로직을 `_cleanup_resource_context()`/
+  `_cleanup_risk_tracker()` 공용 헬퍼로 추출해 `_run()`의 `finally`에도 동일하게 적용
+  (순수 리팩터링 + 누락분 추가, 기존 3곳의 동작은 변경 없음 — 두 헬퍼 모두 멱등이라
+  중복 호출 안전). 회귀 테스트 2건 신규(`test_resource_cleanup_on_completion.py`) —
+  `job.stop()`/`cancel()`을 전혀 호출하지 않고 자연 완료만 기다린 뒤에도 백그라운드
+  태스크가 정리되는지 검증(기존 `test_listener_cleanup.py`는 항상 명시적으로 `stop()`을
+  불러 정리를 검증하는 패턴이라 이 버그를 못 잡았음). 상세:
+  `docs/bug_reports/workflow_resource_context_leak_on_completion.md`
+
 ## [1.24.1] - 2026-06-20
 ### Added
 - **주문 거부 진단 + 빈주문 사유 구분** (order-error-mapping) — 라이브 런타임 주문 실패
